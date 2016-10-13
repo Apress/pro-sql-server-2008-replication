@@ -1,0 +1,359 @@
+Chap19
+
+
+Listing 19-1. Capturing the Showplan Trace and Analyzing It
+/*Execute this on the trace database, performance */
+use performance
+go
+
+/*Step 1: Load the data from the trace file for the 
+Showplan XML event */
+
+select textdata,
+spid,
+cpu,
+duration,
+databasename,
+objectname,
+linenumber,
+objecttype,
+reads,
+writes
+into mysales_merge_downloadpubinsert
+from fn_trace_gettable('c:\files\mysales_merge_downloadpub.trc', 
+default)
+where eventclass=122
+go
+
+/*Step 2: Query the showplanmerge_down table */
+
+select spid,
+textdata,
+databasename,
+objectname,
+objecttype
+from mysales_merge_downloadpubinsert
+where textdata like '%item%' and objectname not like 'dynamic%'
+order by spid
+go
+
+
+
+Listing 19-2. Determining the Performance Cost for Executing Merge Triggers
+/*Execute this on the performance database */
+use performance
+go
+
+select spid,
+cpu,
+duration,
+textdata,
+databasename,
+objectname,
+objecttype,
+reads,
+writes
+from mysales_merge_downloadpubinsert 
+where textdata like '%trigger%'
+and objecttype in (8272,21076) and objectname is not null
+order by cpu desc
+go
+
+
+
+Listing 19-3. Using sqlcmd to Generate Separate Tables for Trigger Trace Data
+/* Use the sqlcmd utility to execute this script */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+/* You can set your own username and password */
+
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/* Use the database that holds the performance data */
+
+Use $(db)
+select $(col1), --textdata
+$(col2), --spid
+$(col3), -- cpu,
+$(col4), ---duration
+$(col5), --- databasename
+$(col6), ---objectname
+$(col7), ---linenumber
+$(col8), ---objecttype
+$(col9),---reads
+$(col10), ---writes
+ /* Name of the table in the performance database 
+showplanmerge_down */
+into $(tablename)
+/*Name of the file''c:\files\mysales_merge_downloadpub.t'c', 
+default) */
+/* Just change the file extension if the trace file you are 
+using is of file type XML (*.xml) or SQLPlan (*.SQLPlan) */
+from fn_trace_gettable('$(path).trc',default)
+
+/* SP:StmtCompleted =45 */
+
+where eventclass=$(eventclass)
+go
+
+select $(col2),
+$(col1),
+$(col5),
+$(col6),
+$(col8)
+from $(tablename)
+---showplanmerge_down
+where textdata like '$(stringvar1)'
+---'%item%'
+and objectname not like '$(stringvar2)'
+---'dynamic%'
+order by $(col2)
+go
+
+
+
+Listing 19-4. XML Schema Definition for the Exploratory Analysis Using the DTA Command-Line Utility
+<?xml version="1.0" encoding="utf-16" ?> 
+- <DTAXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xmlns="http://schemas.microsoft.com/sqlserver/2004/07/dta">
+- <DTAInput>
+- <Server>
+  <Name>BIOREPL\BIOREPL_TEST</Name> 
+- <Database>
+  <Name>[mysales_merge]</Name> 
+- <Schema>
+  <Name>[myfinance]</Name> 
+- <Table>
+  <Name>[AccountInvoice]</Name> 
+  </Table>
+- <Table>
+  <Name>[AccountsReceivable]</Name> 
+  </Table>
+- <Table>
+  <Name>[CashReceipt]</Name> 
+  </Table>
+  </Schema>
+- <Schema>
+  <Name>[myinventory]</Name> 
+- <Table>
+  <Name>[Item]</Name> 
+  </Table>
+- <Table>
+  <Name>[Pricelist]</Name> 
+  </Table>
+- <Table>
+  <Name>[PurchaseOrderDetail]</Name> 
+  </Table>
+- <Table>
+  <Name>[PurchaseOrderHeader]</Name> 
+  </Table>
+- <Table>
+  <Name>[StockItem]</Name> 
+  </Table>
+- <Table>
+  <Name>[Vendor]</Name> 
+  </Table>
+- <Table>
+  <Name>[Warehouse]</Name> 
+  </Table>
+  </Schema>
+- <Schema>
+  <Name>[myorder]</Name> 
+- <Table>
+  <Name>[BillTo]</Name> 
+  </Table>
+- <Table>
+  <Name>[Customer]</Name> 
+  </Table>
+- <Table>
+  <Name>[CustSales]</Name> 
+  </Table>
+- <Table>
+  <Name>[OrderDetail]</Name> 
+  </Table>
+- <Table>
+  <Name>[OrderHeader]</Name> 
+  </Table>
+- <Table>
+  <Name>[SalesPerson]</Name> 
+  </Table>
+- <Table>
+  <Name>[ShipTo]</Name> 
+  </Table>
+- <Table>
+  <Name>[Stock]</Name> 
+  </Table>
+- <Table>
+  <Name>[vw_CustomerInvoiceStatus]</Name> 
+  </Table>
+- <Table>
+  <Name>[vw_ItemEnquiry]</Name> 
+  </Table>
+- <Table>
+  <Name>[vw_OrderStatus]</Name> 
+  </Table>
+- <Table>
+  <Name>[ZONE]</Name> 
+  </Table>
+  </Schema>
+  </Database>
+- <Database>
+  <Name>[mysales_remotedown_merge]</Name> 
+- <Schema>
+  <Name>[myinventory]</Name> 
+- <Table>
+  <Name>[Item]</Name> 
+  </Table>
+- <Table>
+  <Name>[Pricelist]</Name> 
+  </Table>
+- <Table>
+  <Name>[Warehouse]</Name> 
+  </Table>
+  </Schema>
+- <Schema>
+  <Name>[myorder]</Name> 
+- <Table>
+  <Name>[SalesPerson]</Name> 
+  </Table>
+  </Schema>
+  </Database>
+  </Server>
+- <Workload>
+- <Database>
+  <Name>performance</Name> 
+- <Schema>
+  <Name>dbo</Name> 
+- <Table>
+  <Name>mysales_merge_downloadpubinsert</Name> 
+  </Table>
+  </Schema>
+  </Database>
+    </Server>
+
+<! --The name of the workload file; which can be xml or trc -->
+ 
+  <Workload>
+      <File>C:\publishing\optimization\mysales_merge_downloadpub.trc</File>
+    </Workload>
+
+<! --The tuning options -->
+- <TuningOptions>
+  <TuningLogTable /> 
+  <TuningTimeInMin>16</TuningTimeInMin> 
+  <StorageBoundInMB>2900</StorageBoundInMB> 
+  <MaxColumnsInIndex>1023</MaxColumnsInIndex> 
+  <FeatureSet>IDX</FeatureSet> 
+  <Partitioning>NONE</Partitioning> 
+  <KeepExisting>ALL</KeepExisting> 
+  <OnlineIndexOperation>OFF</OnlineIndexOperation> 
+  <DatabaseToConnect>[performance]</DatabaseToConnect> 
+  </TuningOptions>
+
+<! --The configuration options -->
+
+<Configuration SpecificationMode="Absolute">
+      <Server>
+        <Name>BIOREPL\BIOREPL_TEST</Name>
+          <Database>
+           <Name>mysales_merge</Name>
+            <Schema>
+              <Name>myinventory</Name>
+                <Table>
+                  <Name>Item</Name>
+                  <Recommendation>
+                    <Create>
+                      <Index Clustered="true" Unique="false" 
+Online="false" IndexSizeInMB="873.75">
+                        <Name>PK_Item</Name>
+                        </Index>
+                    </Create>
+                  </Recommendation>
+                </Table>
+            </Schema>
+          </Database>
+      </Server>
+    </Configuration>
+  </DTAInput>
+</DTAXML>
+
+
+
+Listing 19-5. Custom T-SQL Collector for Monitoring Pending Changes in Merge Publication
+Begin Transaction
+Begin Try
+Declare @collection_set_id_35 int
+Declare @collection_set_uid_36 uniqueidentifier
+EXEC [msdb].[dbo].[sp_syscollector_create_collection_set] @name=N'Pending Changes
+for merge databases', @collection_mode=1, @description=N'Pending changes for merge
+replication', @logging_level=0, @days_until_expiration=14, 
+@schedule_name=N'CollectorSchedule_Every_5min', 
+@collection_set_id=@collection_set_id_35 OUTPUT, 
+@collection_set_uid=@collection_set_uid_36 OUTPUT
+Select @collection_set_id_35, @collection_set_uid_36
+
+Declare @collector_type_uid_37 uniqueidentifier
+Select @collector_type_uid_37 = collector_type_uid From 
+[msdb].[dbo].[syscollector_collector_types] Where name = N'Generic T-SQL Query 
+Collector Type';
+Declare @collection_item_id_38 int
+EXEC [msdb].[dbo].[sp_syscollector_create_collection_item] @name=N'Pending 
+changes', @parameters=N'<ns:TSQLQueryCollector 
+xmlns:ns="DataCollectorType"><Query><Value>
+declare @tablepending table(
+destination_server sysname,
+pub_name sysname,
+destination_db_name sysname,
+is_dest_subscriber bit,
+article_name sysname,
+pending_deletes int,
+pending_ins_and_upd int)
+
+declare @i int, @count int, @dbname sysname
+set @count=0
+select @i=(select count(*) from master.sys.sysdatabases 
+where category=4)
+while  (@count &lt; @i)
+begin
+select @dbname=name from master.sys.sysdatabases where category=4
+insert into @tablepending exec sp_showpendingchanges
+set @count=@count+1
+end
+select * from @tablepending
+
+
+</Value><OutputTable>merge_Pendingchanges</OutputTable></Query><Databases 
+UseUserDatabases="true" /></ns:TSQLQueryCollector>', 
+@collection_item_id=@collection_item_id_38 OUTPUT, @frequency=5, 
+@collection_set_id=@collection_set_id_35, @collector_type_uid=
+@collector_type_uid_37
+Select @collection_item_id_38
+
+Commit Transaction;
+End Try
+Begin Catch
+Rollback Transaction;
+DECLARE @ErrorMessage NVARCHAR(4000);
+DECLARE @ErrorSeverity INT;
+DECLARE @ErrorState INT;
+DECLARE @ErrorNumber INT;
+DECLARE @ErrorLine INT;
+DECLARE @ErrorProcedure NVARCHAR(200);
+SELECT @ErrorLine = ERROR_LINE(),
+       @ErrorSeverity = ERROR_SEVERITY(),
+       @ErrorState = ERROR_STATE(),
+       @ErrorNumber = ERROR_NUMBER(),
+       @ErrorMessage = ERROR_MESSAGE(),
+       @ErrorProcedure = ISNULL(ERROR_PROCEDURE(), '-');
+RAISERROR (14684, @ErrorSeverity, 1 , @ErrorNumber, @ErrorSeverity,
+ @ErrorState, @ErrorProcedure, @ErrorLine, @ErrorMessage);
+
+End Catch;
+
+GO
+
+
+

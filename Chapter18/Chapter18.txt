@@ -1,0 +1,647 @@
+Chap18
+
+
+Listing 18-1. Setting the Tracer Token for a Transactional Publication
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_PEER"
+:setvar pubdb "mysales_copy"
+:setvar pubname "pub_mysales_copy_myinventory"
+:connect $(server) -l $(logintimeout)
+
+/*Execute this on the publication database */
+use $(pubdb)
+go
+
+declare @tokenidoutput int;
+exec sys.sp_posttracertoken @publication='$(pubname)',
+@tracer_token_id= @tokenidoutput OUTPUT
+go
+
+
+
+Listing 18-2. Determining the Latency of the Distributor Server
+#Determine the latency of the distribution server in each of the instances used
+in #transactional replication
+# store the name of the server\instances in a file
+
+param (
+  [string] $filename
+)
+$SqlConnection = New-Object System.Data.SqlClient.SqlConnection
+$srvrs = get-content $filename
+foreach ($srvr in $srvrs)
+{
+write-host "Name of server\instance used in transactional replication :" $srvr
+write-host "
+-----------------------------------------------------------------------------------"
+write-host
+
+#used in the distribution database
+
+ $conn = "server=$srvr;database=distribution;Integrated Security=true"
+
+# The time difference between the publisher_commit and the
+# distributor_commit is the distributor_latency
+
+  $sqlcmd = "Select a.tracer_id,a.publication_id,
+a.publisher_commit,a.distributor_commit,
+datediff(ms,a.publisher_commit,a.distributor_commit) as
+distributor_latency,b.publisher_db,b.publication_type,b.publication,b.allow_push,
+b.allow_pull
+from MStracer_tokens a, MSpublications b
+where a.publication_id=b.publication_id "
+
+  $sqlda = new-object System.Data.SqlClient.SqlDataAdapter ($sqlcmd, $conn)
+
+  $dt = new-object System.Data.DataTable
+
+  $sqlda.fill($dt) | out-null
+
+  $srvr
+
+  $dt | Format-Table -auto
+
+}
+
+
+Listing 18-3. Determining the Latency for the Subscriber Server
+/* Execute this on the distribution database */
+use distribution
+go
+
+/* The time difference between the distributor_commit column in
+the MStracer_tokens table and the subscriber_commit column in
+the MStracer_history table is the subscriber_latency */
+
+select a.publication_id,
+a.publisher_db,
+a.publication,
+a.publication_type,
+b.subscriber_db,
+b.subscription_type,
+d.distributor_commit,
+c.subscriber_commit,
+datediff(ms,d.distributor_commit, c.subscriber_commit) as
+subscriber_latency
+from MSpublications a,
+MSdistribution_agents b,
+MStracer_history c,
+MStracer_tokens d
+Where a.publication=b.publication
+And b.id=c.agent_id
+And c.parent_tracer_id=d.tracer_id
+go
+
+
+
+Listing 18-4. Locating the Default Trace File
+#Locate the default trace files for all the server\instances
+#store the name of the server\instances in a file
+
+param (
+  [string] $filename
+)
+$SqlConnection = New-Object System.Data.SqlClient.SqlConnection
+$srvrs = get-content $filename
+foreach ($srvr in $srvrs)
+{
+write-host "Name of server\instance used in default tracing :" $srvr
+write-host "-----------------------------------"
+write-host
+
+#used in the master database
+
+ $conn = "server=$srvr;database=master;Integrated Security=true"
+
+
+  $sqlcmd = "select traceid,property,value
+from sys.fn_trace_getinfo(default)"
+
+  $sqlda = new-object System.Data.SqlClient.SqlDataAdapter ($sqlcmd, $conn)
+
+  $dt = new-object System.Data.DataTable
+
+  $sqlda.fill($dt) | out-null
+
+  $srvr
+
+  $dt | Format-Table -auto
+}
+
+
+
+Listing 18-5. Reading the Trace File
+/*Execute this on the master database */
+use master
+go
+
+/*Retrieve rows only for the mysales databases and where the
+textdata column is not null */
+
+select * from fn_trace_gettable
+('C:\log_55.trc',
+default)
+where textdata is not null
+and databasename like 'mysales%'
+go
+
+
+
+Listing 18-6. Scheduling the Job for the Trace
+BEGIN TRANSACTION
+DECLARE @ReturnCode INT
+SELECT @ReturnCode = 0
+
+IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories
+WHERE name='Database Maintenance' AND category_class=1)
+BEGIN
+EXEC @ReturnCode = msdb.dbo.sp_add_category @class='JOB',
+@type='LOCAL',
+@name='Database Maintenance'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+END
+
+DECLARE @jobId BINARY(16)
+EXEC @ReturnCode =  msdb.dbo.sp_add_job
+@job_name='mysales_perftrace',
+@enabled=1,
+@notify_level_eventlog=2,
+@notify_level_email=0,
+@notify_level_netsend=0,
+@notify_level_page=0,
+@delete_level=0,
+@description='schedules the trace for transactional
+replication of mysales database',
+@category_name='Database Maintenance',
+@owner_login_name=N'BIOREPL\SujoyPaul',
+@job_id = @jobId OUTPUT
+
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+/* Step 1: Add the job step and start the trace:
+ START THE TRACE */
+
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId,
+@step_name='Start the trace ---tranperftrace',
+@step_id=1,
+@cmdexec_success_code=0,
+@on_success_action=3,
+@on_success_step_id=0,
+@on_fail_action=2,
+@on_fail_step_id=0,
+@retry_attempts=0,
+@retry_interval=0,
+@os_run_priority=0,
+@subsystem='TSQL',
+@command=N'create procedure usp_mysalestranperf
+as
+
+/* Create a Queue */
+declare @rc int
+declare @TraceID int
+declare @maxfilesize bigint
+set @maxfilesize = 5
+
+-- Please replace the text InsertFileNameHere, with an appropriate
+-- filename prefixed by a path, e.g., c:\MyFolder\MyTrace. The .trc
+extension
+-- will be appended to the filename automatically. If you are
+writing from
+-- remote server to local drive, please use UNC path and make sure
+server has
+-- write access to your network share
+
+exec @rc = sp_trace_create @TraceID output, 0,
+N''C:\files\mysales_tranperf1.trc'', @maxfilesize, NULL
+if (@rc != 0) goto error
+
+-- Client side File and Table cannot be scripted
+
+-- Set the events
+declare @on bit
+set @on = 1
+exec sp_trace_setevent @TraceID, 148, 11, @on
+exec sp_trace_setevent @TraceID, 148, 51, @on
+exec sp_trace_setevent @TraceID, 148, 4, @on
+exec sp_trace_setevent @TraceID, 148, 12, @on
+exec sp_trace_setevent @TraceID, 148, 14, @on
+exec sp_trace_setevent @TraceID, 148, 26, @on
+exec sp_trace_setevent @TraceID, 148, 60, @on
+exec sp_trace_setevent @TraceID, 148, 64, @on
+exec sp_trace_setevent @TraceID, 148, 1, @on
+exec sp_trace_setevent @TraceID, 148, 41, @on
+exec sp_trace_setevent @TraceID, 10, 7, @on
+exec sp_trace_setevent @TraceID, 10, 15, @on
+exec sp_trace_setevent @TraceID, 10, 31, @on
+exec sp_trace_setevent @TraceID, 10, 8, @on
+exec sp_trace_setevent @TraceID, 10, 16, @on
+exec sp_trace_setevent @TraceID, 10, 48, @on
+exec sp_trace_setevent @TraceID, 10, 64, @on
+exec sp_trace_setevent @TraceID, 10, 1, @on
+exec sp_trace_setevent @TraceID, 10, 9, @on
+exec sp_trace_setevent @TraceID, 10, 17, @on
+exec sp_trace_setevent @TraceID, 10, 41, @on
+exec sp_trace_setevent @TraceID, 10, 49, @on
+exec sp_trace_setevent @TraceID, 10, 10, @on
+exec sp_trace_setevent @TraceID, 10, 18, @on
+exec sp_trace_setevent @TraceID, 10, 26, @on
+exec sp_trace_setevent @TraceID, 10, 34, @on
+exec sp_trace_setevent @TraceID, 10, 50, @on
+exec sp_trace_setevent @TraceID, 10, 3, @on
+exec sp_trace_setevent @TraceID, 10, 11, @on
+exec sp_trace_setevent @TraceID, 10, 35, @on
+exec sp_trace_setevent @TraceID, 10, 51, @on
+exec sp_trace_setevent @TraceID, 10, 4, @on
+exec sp_trace_setevent @TraceID, 10, 12, @on
+exec sp_trace_setevent @TraceID, 10, 60, @on
+exec sp_trace_setevent @TraceID, 10, 13, @on
+exec sp_trace_setevent @TraceID, 10, 6, @on
+exec sp_trace_setevent @TraceID, 10, 14, @on
+exec sp_trace_setevent @TraceID, 45, 7, @on
+exec sp_trace_setevent @TraceID, 45, 55, @on
+exec sp_trace_setevent @TraceID, 45, 8, @on
+exec sp_trace_setevent @TraceID, 45, 16, @on
+exec sp_trace_setevent @TraceID, 45, 48, @on
+exec sp_trace_setevent @TraceID, 45, 64, @on
+exec sp_trace_setevent @TraceID, 45, 1, @on
+exec sp_trace_setevent @TraceID, 45, 9, @on
+exec sp_trace_setevent @TraceID, 45, 17, @on
+exec sp_trace_setevent @TraceID, 45, 25, @on
+exec sp_trace_setevent @TraceID, 45, 41, @on
+exec sp_trace_setevent @TraceID, 45, 49, @on
+exec sp_trace_setevent @TraceID, 45, 10, @on
+exec sp_trace_setevent @TraceID, 45, 18, @on
+exec sp_trace_setevent @TraceID, 45, 26, @on
+exec sp_trace_setevent @TraceID, 45, 34, @on
+exec sp_trace_setevent @TraceID, 45, 50, @on
+exec sp_trace_setevent @TraceID, 45, 3, @on
+exec sp_trace_setevent @TraceID, 45, 11, @on
+exec sp_trace_setevent @TraceID, 45, 35, @on
+exec sp_trace_setevent @TraceID, 45, 51, @on
+exec sp_trace_setevent @TraceID, 45, 4, @on
+exec sp_trace_setevent @TraceID, 45, 12, @on
+exec sp_trace_setevent @TraceID, 45, 28, @on
+exec sp_trace_setevent @TraceID, 45, 60, @on
+exec sp_trace_setevent @TraceID, 45, 5, @on
+exec sp_trace_setevent @TraceID, 45, 13, @on
+exec sp_trace_setevent @TraceID, 45, 29, @on
+exec sp_trace_setevent @TraceID, 45, 61, @on
+exec sp_trace_setevent @TraceID, 45, 6, @on
+exec sp_trace_setevent @TraceID, 45, 14, @on
+exec sp_trace_setevent @TraceID, 45, 22, @on
+exec sp_trace_setevent @TraceID, 45, 62, @on
+exec sp_trace_setevent @TraceID, 45, 15, @on
+exec sp_trace_setevent @TraceID, 12, 7, @on
+exec sp_trace_setevent @TraceID, 12, 15, @on
+exec sp_trace_setevent @TraceID, 12, 31, @on
+exec sp_trace_setevent @TraceID, 12, 8, @on
+exec sp_trace_setevent @TraceID, 12, 16, @on
+exec sp_trace_setevent @TraceID, 12, 48, @on
+exec sp_trace_setevent @TraceID, 12, 64, @on
+exec sp_trace_setevent @TraceID, 12, 1, @on
+exec sp_trace_setevent @TraceID, 12, 9, @on
+exec sp_trace_setevent @TraceID, 12, 17, @on
+exec sp_trace_setevent @TraceID, 12, 41, @on
+exec sp_trace_setevent @TraceID, 12, 49, @on
+exec sp_trace_setevent @TraceID, 12, 6, @on
+exec sp_trace_setevent @TraceID, 12, 10, @on
+exec sp_trace_setevent @TraceID, 12, 14, @on
+exec sp_trace_setevent @TraceID, 12, 18, @on
+exec sp_trace_setevent @TraceID, 12, 26, @on
+exec sp_trace_setevent @TraceID, 12, 50, @on
+exec sp_trace_setevent @TraceID, 12, 3, @on
+exec sp_trace_setevent @TraceID, 12, 11, @on
+exec sp_trace_setevent @TraceID, 12, 35, @on
+exec sp_trace_setevent @TraceID, 12, 51, @on
+exec sp_trace_setevent @TraceID, 12, 4, @on
+exec sp_trace_setevent @TraceID, 12, 12, @on
+exec sp_trace_setevent @TraceID, 12, 60, @on
+exec sp_trace_setevent @TraceID, 12, 13, @on
+exec sp_trace_setevent @TraceID, 54, 7, @on
+exec sp_trace_setevent @TraceID, 54, 8, @on
+exec sp_trace_setevent @TraceID, 54, 64, @on
+exec sp_trace_setevent @TraceID, 54, 9, @on
+exec sp_trace_setevent @TraceID, 54, 25, @on
+exec sp_trace_setevent @TraceID, 54, 41, @on
+exec sp_trace_setevent @TraceID, 54, 49, @on
+exec sp_trace_setevent @TraceID, 54, 6, @on
+exec sp_trace_setevent @TraceID, 54, 10, @on
+exec sp_trace_setevent @TraceID, 54, 14, @on
+exec sp_trace_setevent @TraceID, 54, 22, @on
+exec sp_trace_setevent @TraceID, 54, 26, @on
+exec sp_trace_setevent @TraceID, 54, 3, @on
+exec sp_trace_setevent @TraceID, 54, 11, @on
+exec sp_trace_setevent @TraceID, 54, 35, @on
+exec sp_trace_setevent @TraceID, 54, 51, @on
+exec sp_trace_setevent @TraceID, 54, 4, @on
+exec sp_trace_setevent @TraceID, 54, 12, @on
+exec sp_trace_setevent @TraceID, 54, 60, @on
+
+
+-- Set the Filters
+declare @intfilter int
+declare @bigintfilter bigint
+
+exec sp_trace_setfilter @TraceID, 10, 0, 7,''SQLProfiler''
+exec sp_trace_setfilter @TraceID, 10, 0, 7,''SQLAgent''
+exec sp_trace_setfilter @TraceID, 10, 0,
+7,''SQLServerManagementStudio''
+exec sp_trace_setfilter @TraceID, 10, 0, 1,''''
+exec sp_trace_setfilter @TraceID, 35, 1, 6,''msdb''
+exec sp_trace_setfilter @TraceID, 35, 1, 6, ''mysales_remote4''
+exec sp_trace_setfilter @TraceID, 35, 1, 6, ''distribution''
+exec sp_trace_setfilter @TraceID, 35, 1, 6, ''mysales_remote5''
+exec sp_trace_setfilter @TraceID, 35, 1, 6, ''mysales_tranperf''
+exec sp_trace_setfilter @TraceID, 35, 1, 6, ''mysales_tranperf1''
+
+-- Set the trace status to start
+exec sp_trace_setstatus @TraceID, 1
+
+-- display trace id for future references
+select TraceID=@TraceID
+goto finish
+
+error:
+select ErrorCode=@rc
+
+finish:
+go
+',
+@database_name='master',
+@flags=0
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+/* Step 2: STOP AND CLOSE THE TRACE */
+
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId,
+@step_name='Stop and close the trace',
+@step_id=2,
+@cmdexec_success_code=0,
+@on_success_action=1,
+@on_success_step_id=0,
+@on_fail_action=2,
+@on_fail_step_id=0,
+@retry_attempts=0,
+@retry_interval=0,
+@os_run_priority=0,
+@subsystem='TSQL',
+@command='exec sp_trace_setstatus @TraceID, 0
+go
+exec sp_trace_setstatus @TraceID,2
+',
+@database_name='master',
+@flags=0
+
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId,
+@start_step_id = 1
+
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+/* Schedule the job */
+EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule
+@job_id=@jobId, @name='mysales_tranperf1_schedule',
+@enabled=1,
+@freq_type=8,
+@freq_interval=4,
+@freq_subday_type=8,
+@freq_subday_interval=1,
+@freq_relative_interval=0,
+@freq_recurrence_factor=1,
+@active_start_date=20060627,
+@active_end_date=99991231,
+@active_start_time=0,
+@active_end_time=235959
+
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId,
+@server_name ='(Local)'
+
+IF (@@ERROR <> 0 OR @ReturnCode <> 0)
+GOTO QuitWithRollback
+
+COMMIT TRANSACTION
+
+GOTO EndSave
+
+QuitWithRollback:
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
+EndSave:
+
+
+
+
+Listing 18-7. Trace for Finding Out Which Stored Procedures Are Consuming High CPU
+/*Execute this on the database where the trace data is stored */
+use performance
+go
+
+select spid,
+CPU,
+(Duration/1000) as duration,
+textdata,
+reads,
+writes,
+objectname,
+databasename
+from transreplication_perftrace_afterrepl
+where CPU>(100) and
+textdata like '%sp%'
+order by  duration
+
+
+
+Listing 18-8. Retrieving Event Names and the Corresponding Subclass Names
+/* Execute this on the database where the trace data is stored */
+
+use performance
+go
+
+select a.CPU,
+a.duration,
+a.textdata,
+a.eventclass,
+a.databasename,
+a.reads,
+c.name,
+b.subclass_name
+from transreplication_perftrace_afterrepl as a,
+sys.trace_subclass_values as b,
+sys.trace_events as c
+where eventclass in (10,12,45)
+and CPU>100
+and c.trace_event_id=b.trace_event_id
+and a.textdata like '%sp_MS%'
+order by CPU desc
+go
+
+
+
+Listing 18-9. Determining the CPU Utilization of Other Replicated Databases
+/* Execute this on the database where the trace data is stored */
+use performance
+
+go
+
+select spid,
+CPU,
+(duration/1000)as duration,
+textdata,
+reads,
+writes,
+objectname,
+databasename
+from transreplication_perftrace_afterrepl
+where CPU>(100) and
+databasename not like 'mysales%'
+order by CPU desc
+
+
+
+Listing 18-10. Transactions Where the CPU Utilization Is Greater Than the Duration of eventclass
+/* Execute this on the database where the trace data is stored */
+use performance
+
+select spid,
+CPU,
+duration,
+eventclass,
+textdata,
+reads,
+writes,
+objectname,
+databasename
+from transreplication_perftrace_afterrepl
+where CPU>(duration/1000)
+and eventclass in (10,12,45)
+order by CPU desc
+go
+
+
+
+Listing 18-11. Finding Out Whether the CPU Utilization of insert Statements Exceeded the duration
+/* Execute this on the database where the trace data is stored */
+use performance
+
+go
+
+select spid,
+CPU,
+duration,
+eventclass,
+textdata,
+reads,
+writes,
+objectname,
+databasename
+from transreplication_perftrace_afterrepl
+where CPU>(duration/1000)
+and databasename not like 'distribution%'
+and eventclass in (10,12,45)
+and textdata like '%sp_MS%'
+order by CPU desc
+go
+
+
+
+Listing 18-12. Inserting records in the Stock table
+/* insert records in the stock table of the mysales_copy database
+Use mysales_copy
+go
+insert into myorder.Stock(
+  [StockId]
+      ,[Whse]
+      ,[QtyOnHand]
+      ,[QtyOnOrd]
+      ,[QtyAvail]
+      ,[ItemNum])values(
+3000,11,1000,200,25,1026),
+(3010,11,1000,200,25,1026),
+(3020,11,1000,200,25,1026),
+(3025,11,1000,200,25,1026),
+(3030,11,1000,200,25,1026),
+(3040,11,1000,200,25,1026),
+(3045,11,1000,200,25,1026),
+(3050,11,1000,200,25,1026),
+(3060,11,1000,200,25,1026),
+(3070,11,1000,200,25,1026),
+(3080,11,1000,200,25,1026),
+(3090,11,1000,200,25,1026),
+(3095,11,1000,200,25,1026),
+(3096,11,1000,200,25,1026),
+(3097,11,1000,200,25,1026),
+(4000,11,1000,200,25,1026)
+G0
+
+
+
+Listing 18-13. Finding Out What Kind of Workload Was Used
+/*Execute this on the msdb database *.
+
+select sessionid,
+sessionname,
+tuningoptions,
+logtablename
+from msdb.dbo.DTA_input
+go
+
+
+
+Listing 18-14. Determining the Recommended and Current Costs of Executing Different Statements
+/*Execute this on the msdb database */
+use msdb
+go
+
+select a.schemaname,
+a.tablename,
+d.DatabaseName,
+d.isdatabaseselectedtotune,
+b.isclustered,
+b.numrows,
+b.recommendedstorage,
+c.statementstring,
+c.currentcost,
+c.recommendedcost,
+c.weight,
+c.eventstring
+from msdb.dbo.DTA_reports_table as a,
+msdb.dbo.DTA_reports_index as b,
+msdb.dbo.DTA_reports_query as c,
+msdb.dbo.DTA_reports_database as d
+where a.schemaname not like 'dbo' and
+a.tableid=b.tableid and
+c.sessionid=d.sessionid and
+d.databasename like 'mysales%'
+go
+
+
+
+Listing 18-15. Finding Statements That Have Not Been Tuned
+/* Execute this on the msdb database */
+
+use msdb
+go
+
+select b.categoryid,
+b.event,
+b.statement,
+b.frequency,
+b.reason
+from msdb.dbo.DTA_input as a,
+msdb.dbo.DTA_tuninglog as b
+where statement not like ' '
+and a.sessionid=b.sessionid
+and a.sessionname like 'mysales_transactionalperformance'
+go
+
+
+

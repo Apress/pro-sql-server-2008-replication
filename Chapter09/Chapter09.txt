@@ -1,0 +1,1445 @@
+Chap09
+
+Listing 9-1. Enabling and Creating the Standard Publication for Transactional Replication
+/*Execute this on the publication database, mysales_copy */
+
+use [mysales_copy]
+exec sp_replicationdboption
+@dbname =  'mysales_copy',
+@optname =  'publish',
+@value =  'true'
+Go
+
+/* Add the transactional publication */
+/* The @synch_method is set to concurrent for
+transactional replication */
+
+use [mysales_copy]
+exec sp_addpublication @publication =  'pub_mysales_copy_myinventory',
+@description =  'Transactional publication of database ''mysales_copy'' from
+Publisher ''BIOREPL\BIOREPL_PEER''.',
+
+@sync_method =  'concurrent',
+@retention = 0, @allow_push =  'true', @allow_pull =  'true',
+@allow_anonymous =  'true', @snapshot_in_defaultfolder =  'true',
+
+@compress_snapshot =  'false',
+@allow_subscription_copy =  'false', @add_to_active_directory =  'false',
+@repl_freq =  'continuous', @status =  'active',
+
+@independent_agent =  'true', @immediate_sync =  'true',
+@allow_sync_tran =  'false', @autogen_sync_procs =  'false',
+@allow_queued_tran =  'false',
+@replicate_ddl = 1,
+
+@allow_initialize_from_backup =  'false',
+@enabled_for_p2p =  'false',
+@enabled_for_het_sub =  'false'
+go
+
+
+
+Listing 9-2. Finding Out Whether the Log Reader Agent Exists
+/*Execute this on the publication database */
+
+Use mysales_copy
+Go
+
+sp_helplogreader_agent
+
+
+
+Listing 9-3. Adding Articles, Including the usp_item_duplicates Stored Procedure
+/* Execute sp_addarticle for the StockItem article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'StockItem', @source_owner =  'myinventory',
+@source_object =  'StockItem', @type =  'logbased',
+@description = null,
+@creation_script = null, @pre_creation_cmd =  'drop',
+@schema_option = 0x000000000803509F,
+
+@identityrangemanagementoption =  'manual',
+@destination_table =  'StockItem', @destination_owner =  
+'myinventory',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryStockItem',
+@del_cmd =  'CALL sp_MSdel_myinventoryStockItem',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryStockItem'
+GO
+
+/* Execute sp_addarticle for the Customer article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Customer', @source_owner =  'myorder',
+@source_object =  'Customer', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Customer', @destination_owner =  'myorder',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myorderCustomer',
+@del_cmd =  'CALL sp_MSdel_myorderCustomer',
+@upd_cmd =  'SCALL sp_MSupd_myorderCustomer'
+GO
+
+/* Execute sp_addarticle for the Stock article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Stock', @source_owner =  'myorder',
+@source_object =  'Stock', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Stock', @destination_owner =  'myorder',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myorderStock',
+@del_cmd =  'CALL sp_MSdel_myorderStock',
+@upd_cmd =  'SCALL sp_MSupd_myorderStock'
+GO
+
+/* Execute sp_addarticle for the Item article */
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Item', @source_owner =  'myinventory',
+@source_object =  'Item', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Item', @destination_owner =  'myinventory',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryItem',
+@del_cmd =  'CALL sp_MSdel_myinventoryItem',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryItem'
+GO
+
+/* Execute sp_addarticle for the Warehouse article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @source_owner =  'myinventory',
+@source_object =  'Warehouse', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Warehouse',
+@destination_owner =  'myinventory', @vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryWarehouse',
+@del_cmd =  'CALL sp_MSdel_myinventoryWarehouse',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryWarehouse',
+@filter_clause =  '[Whse_City] =''Vancouver'''
+
+/*  Add the article filter */
+
+exec sp_articlefilter @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @filter_name =  'FLTR_Warehouse_1__63',
+
+@filter_clause =  '[Whse_City] =''Vancouver''',
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+
+/*  Add the article synchronization object */
+
+exec sp_articleview @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @view_name =  'SY C_Warehouse_1__63',
+@filter_clause =  '[Whse_City] =''Vancouver''',
+@force_invalidate_snapshot = 1, @force_reinit_subscription = 1
+GO
+
+/* Add the stored procedure */
+
+use [mysales_copy]
+go
+
+/* Check the source owner and the destination owner of the
+stored procedure before executing the following code.*/
+
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'usp_item_duplicates',
+@source_owner =  'dbo', @source_object =  'usp_item_duplicates',
+
+ @type =  'proc schema only',
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop',
+@schema_option = 0x0000000008000001,
+@destination_table =  'usp_item_duplicates',
+@destination_owner =  'dbo'
+GO
+
+Listing 9-3. Adding Articles, Including the usp_item_duplicates Stored Procedure
+/* Execute sp_addarticle for the StockItem article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'StockItem', @source_owner =  'myinventory',
+@source_object =  'StockItem', @type =  'logbased',
+@description = null,
+@creation_script = null, @pre_creation_cmd =  'drop',
+@schema_option = 0x000000000803509F,
+
+@identityrangemanagementoption =  'manual',
+@destination_table =  'StockItem', @destination_owner =  'myinventory',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryStockItem',
+@del_cmd =  'CALL sp_MSdel_myinventoryStockItem',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryStockItem'
+GO
+
+/* Execute sp_addarticle for the Customer article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Customer', @source_owner =  'myorder',
+@source_object =  'Customer', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Customer', @destination_owner =  'myorder',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myorderCustomer',
+@del_cmd =  'CALL sp_MSdel_myorderCustomer',
+@upd_cmd =  'SCALL sp_MSupd_myorderCustomer'
+GO
+
+/* Execute sp_addarticle for the Stock article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Stock', @source_owner =  'myorder',
+@source_object =  'Stock', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Stock', @destination_owner =  'myorder',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myorderStock',
+@del_cmd =  'CALL sp_MSdel_myorderStock',
+@upd_cmd =  'SCALL sp_MSupd_myorderStock'
+GO
+
+/* Execute sp_addarticle for the Item article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Item', @source_owner =  'myinventory',
+@source_object =  'Item', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Item', @destination_owner =  'myinventory',
+@vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryItem',
+@del_cmd =  'CALL sp_MSdel_myinventoryItem',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryItem'
+GO
+
+/* Execute sp_addarticle for the Warehouse article */
+
+use [mysales_copy]
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @source_owner =  'myinventory',
+@source_object =  'Warehouse', @type =  'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop', @schema_option = 0x000000000803509F,
+@identityrangemanagementoption =  'manual',
+
+@destination_table =  'Warehouse',
+@destination_owner =  'myinventory', @vertical_partition =  'false',
+
+@ins_cmd =  'CALL sp_MSins_myinventoryWarehouse',
+@del_cmd =  'CALL sp_MSdel_myinventoryWarehouse',
+@upd_cmd =  'SCALL sp_MSupd_myinventoryWarehouse',
+@filter_clause =  '[Whse_City] =''Vancouver'''
+
+/*  Add the article filter */
+
+exec sp_articlefilter @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @filter_name =  'FLTR_Warehouse_1__63',
+
+@filter_clause =  '[Whse_City] =''Vancouver''',
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+
+/*  Add the article synchronization object */
+
+exec sp_articleview @publication =  'pub_mysales_copy_myinventory',
+@article =  'Warehouse', @view_name =  'SY C_Warehouse_1__63',
+@filter_clause =  '[Whse_City] =''Vancouver''',
+@force_invalidate_snapshot = 1, @force_reinit_subscription = 1
+GO
+
+/* Add the stored procedure */
+
+use [mysales_copy]
+go
+
+/* Check the source owner and the destination owner of the
+stored procedure before executing the following code.*/
+
+exec sp_addarticle @publication =  'pub_mysales_copy_myinventory',
+@article =  'usp_item_duplicates',
+@source_owner =  'dbo', @source_object =  'usp_item_duplicates',
+
+ @type =  'proc schema only',
+@description = null, @creation_script = null,
+@pre_creation_cmd =  'drop',
+@schema_option = 0x0000000008000001,
+@destination_table =  'usp_item_duplicates',
+@destination_owner =  'dbo'
+GO
+
+Listing 9-4. Creating the Snapshot Agent
+/* Execute the stored procedure on the current publication database */
+
+exec sp_addpublication_snapshot
+@publication =  'pub_mysales_copy_myinventory',
+@frequency_type = 1,
+@frequency_interval = 0,
+
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 0,
+@active_end_date = 0,
+@job_login = null,
+
+@job_password = null,
+@publisher_security_mode = 1
+
+
+Listing 9-5. Starting the Snapshot Agent Job
+/* Execute this on the publication database */
+Use mysales_copy
+Go
+
+Exec sp_startpublication_snapshot 'pub_mysales_copy_myinventory'
+Go
+
+Listing 9-6. Setting Up a Push Subscription for Standard Transactional Replication
+/* Execute this on the publication database */
+use mysales_copy
+go
+
+exec sp_addsubscription @publication =
+'pub_mysales_copy_myinventory',
+@subscriber =  'BIOREPL\BIOREPL_PEER',
+@destination_db =  'mysalescopy_stpub_remotepush',
+
+@subscription_type =  'Push',
+@sync_type =  'automatic',
+@article =  'all',
+@update_mode =  'read only',
+@subscriber_type = 0
+
+exec sp_addpushsubscription_agent @publication =
+'pub_mysales_copy_myinventory',
+@subscriber =  'BIOREPL\BIOREPL_PEER',
+
+@subscriber_db =  'mysalescopy_stpub_remotepush',
+@job_login = null,
+@job_password = null,
+@subscriber_security_mode = 1,
+@frequency_type = 64,
+
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+
+@active_end_time_of_day = 235959,
+@active_start_date = 20060111,
+@active_end_date = 99991231,
+
+@enabled_for_syncmgr =  'False',
+@dts_package_location = 'Distributor'
+go
+
+Listing 9-7. Setting Up a Pull Subscription for Standard Publication for Transactional Replication
+/*1. Execute this on the Publisher server on the publication
+database */
+
+use mysales_copy
+go
+
+exec sp_addsubscription @publication =
+ 'pub_mysales_copy_myinventory',
+@subscriber =  'BIOREPL\BIOREPL_PEER',
+@destination_db =  'mysalescopyinven_stdpub_remotepull',
+
+@sync_type =  'Automatic',
+@subscription_type =  'pull',
+@update_mode =  'read only'
+Go
+
+/* 2. Execute this on the subscription database on the Subscriber server */
+
+use mysalescopyinven_stdpub_remotepull
+go
+
+exec sp_addpullsubscription @publisher =
+'BIOREPL\BIOREPL_PEER', @publication =
+'pub_mysales_copy_myinventory',
+@publisher_db =  'mysales_copy',
+
+@independent_agent =  'True',
+@subscription_type =  'pull',
+
+@description =  '',
+@update_mode =  'read only',
+@immediate_sync = 1
+
+exec sp_addpullsubscription_agent @publisher =
+'BIOREPL\BIOREPL_PEER',
+@publisher_db =  'mysales_copy',
+@publication =  'pub_mysales_copy_myinventory',
+
+@distributor =  'BIOREPL\BIOREPL_PEER',
+@distributor_security_mode = 1,
+@distributor_login =  '',
+@distributor_password = null,
+
+@enabled_for_syncmgr =  'False',
+@frequency_type = 64,
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+@active_start_date = 20060113,
+
+@active_end_date = 99991231,
+@alt_snapshot_folder =  '',
+@working_directory =  '',
+@job_login = null,
+@job_password = null,
+@publication_type = 0
+GO
+
+Listing 9-8. Configuring the Transactional Publication
+/*1. Enable the replication database */
+
+use master
+
+exec sp_replicationdboption @dbname = 'mysales_copy',
+@optname = 'publish',
+@value = 'true'
+
+GO
+
+/* 2. Add the transactional publication for immediate
+update subscriptions */
+
+use [mysales_copy]
+go
+
+exec sp_addpublication @publication = 'pub_updsub_mysales_copy',
+@description = 'Transactional publication with updatable
+subscriptions of database ''mysales_copy'' from Publisher
+''BIOREPL\BIOREPL_PEER''.',
+
+@sync_method = 'concurrent',
+@retention = 0,
+
+@allow_push = 'true',
+@allow_pull = 'true',
+@snapshot_in_defaultfolder = 'true',
+
+@allow_subscription_copy = 'false',
+@add_to_active_directory = 'false',
+@repl_freq = 'continuous',
+
+@status = 'active',
+@independent_agent = 'true',
+@immediate_sync = 'true',
+
+@allow_sync_tran = 'true',
+@autogen_sync_procs = 'true',
+@allow_queued_tran = 'true',
+
+@conflict_policy = 'pub wins',
+@centralized_conflicts = 'true',
+@conflict_retention = 14,
+
+@queue_type = 'sql',
+@replicate_ddl = 1,
+@allow_initialize_from_backup = 'false',
+
+@enabled_for_p2p = 'false',
+@enabled_for_het_sub = 'false'
+GO
+
+/* 3. Execute the stored procedure on the current publication database to
+create the Snapshot Agent */
+
+use [mysales_copy]
+go
+
+exec sp_addpublication_snapshot @publication =
+'pub_updsub_mysales_copy', @frequency_type = 1,
+@frequency_interval = 0,
+
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 0, @active_end_date = 0,
+@job_login = null, @job_password = null,
+@publisher_security_mode = 1
+
+/* 4. Add the articles */
+
+use [mysales_copy]
+go
+/* Execute sp_addarticle for the Customer article */
+
+exec sp_addarticle @publication = 'pub_updsub_mysales_copy',
+@article = 'Customer', @source_owner = 'myorder',
+@source_object = 'Customer', @type = 'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x0000000008035CDF,
+
+@identityrangemanagementoption = 'manual',
+@destination_table = 'Customer',
+@destination_owner = 'myorder', @status = 16,
+
+ @vertical_partition = 'false'
+GO
+
+/* Execute sp_addarticle for the Item article */
+
+exec sp_addarticle @publication = 'pub_updsub_mysales_copy',
+@article = 'Item', @source_owner = 'myinventory',
+@source_object = 'Item', @type = 'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x0000000008035CDF,
+
+@identityrangemanagementoption = 'manual',
+@destination_table = 'Item',
+@destination_owner = 'myinventory', @status = 16,
+
+@vertical_partition = 'false'
+GO
+
+/* Execute sp_addarticle for the StockItem article */
+
+exec sp_addarticle @publication = 'pub_updsub_mysales_copy',
+@article = 'StockItem', @source_owner = 'myinventory',
+@source_object = 'StockItem', @type = 'logbased',
+
+@description = null, @creation_script = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x0000000008035CDF,
+@identityrangemanagementoption = 'manual',
+
+@destination_table = 'StockItem',
+@destination_owner = 'myinventory',
+@status = 16,
+@vertical_partition = 'false'
+GO
+
+/* Execute sp_addarticle for the Warehouse article */
+
+exec sp_addarticle @publication = 'pub_updsub_mysales_copy',
+@article = 'Warehouse',
+@source_owner = 'myinventory',
+@source_object = 'Warehouse',
+@type = 'logbased',
+
+@description = '', @creation_script = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x0000000008035CDF,
+@identityrangemanagementoption = 'manual',
+
+@destination_table = 'Warehouse',
+@destination_owner = 'myinventory',
+@status = 16,
+@vertical_partition = 'false'
+GO
+
+/* Execute sp_addarticle for the usp_item_duplicates article */
+
+exec sp_addarticle @publication = 'pub_updsub_mysales_copy',
+@article = 'usp_item_duplicates',
+@source_owner = 'dbo',
+@source_object = 'usp_item_duplicates',
+
+@type = 'proc schema only',
+@description = null,
+@creation_script = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x0000000008000001,
+
+@destination_table = 'usp_item_duplicates',
+@destination_owner = 'dbo'
+GO
+
+Listing 9-9. Verifying Whether the Publication Supports Immediate Updating Subscriptions
+/* Execute this on the publication database */
+
+Use mysales_copy
+Go
+
+sp_helppublication
+
+Listing 9-10. Creating the Pull Subscription
+/* Execute this on the subscription database on the Subscriber that is going to be
+used for pull subscription */
+
+use mysalescopy_upd_remotepull
+go
+
+exec sp_addpullsubscription
+@publisher='BIOREPL\BIOREPL_PEER',
+@publication =  'pub_updsub_mysales_copy',
+@publisher_db =  'mysales_copy', @independent_agent =  'True',
+
+@subscription_type =  'pull',
+@update_mode =  'failover',
+@immediate_sync = 1
+go
+
+Listing 9-11. Adding the Scheduled Agent to Synchronize the Pull Subscription
+/* Execute this on the subscription database on the Subscriber server */
+
+Use mysales_copy
+Go
+
+exec sp_addpullsubscription_agent
+@publisher =  BIOREPL\BIOREPL_PEER',
+@publisher_db =  'mysales_copy', @publication =  'pub_updsub_mysales_copy',
+
+@distributor =  'BIOREPL\BIOREPL_PEER',
+@distributor_security_mode = 1, @distributor_login =  '',
+@distributor_password = null,
+
+@enabled_for_syncmgr =  'False',
+@frequency_type = 64,
+@frequency_interval = 0,
+
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 20060108,
+@active_end_date = 99991231,
+@alt_snapshot_folder =  '', @working_directory =  '',
+
+@job_login = null, @job_password = null,
+@publication_type = 0
+GO
+
+/* Execute this on the subscription database on the Subscriber server */
+
+use mysalescopy_upd_remotepull
+go
+
+exec sp_link_publication @publisher =
+'BIOREPL\BIOREPL_PEER',
+@publication =  'pub_updsub_mysales_copy',
+@publisher_db =  'mysales_copy',
+@security_mode = 0,
+@login =  'sa',
+@password = null
+go
+
+Listing 9-13. Adding the Subscription on the Publisher Server
+/* Execute this on the publication database on the Publisher server */
+
+use [mysales_copy]
+go
+
+exec sp_addsubscription @publication =  'pub_updsub_mysales_copy',
+@subscriber =  'BIOREPL\BIOREPL_PEER',
+@destination_db =  'mysalescopy_upd_remotepull',
+
+@sync_type =  'Automatic',
+@subscription_type =  'pull',
+@update_mode =  'failover'
+GO
+
+Listing 9-14. Adding the Push Subscription and Agent, and Configuring the Triggers’ Security Settings
+/* Execute this code on the publication database on the Publisher */
+
+use mysales_copy
+go
+
+/* Add the push subscription on the Publisher */
+
+exec sp_addsubscription @publication = 'pub_updsub_mysales_copy',
+@subscriber =    'BIOREPL\BIOREPL_PEER',
+@destination_db =    'mysalescopy_upd_remotepush',
+
+@subscription_type =  'Push',
+@sync_type =    'automatic',
+@article =    'all',
+
+@update_mode = 'failover',
+@subscriber_type = 0
+go
+
+
+/* Add the push subscription agent on the Publisher server */
+
+exec sp_addpushsubscription_agent
+@publication =    'pub_updsub_mysales_copy',
+@subscriber =    'BIOREPL\BIOREPL_PEER',
+@subscriber_db =    'mysalescopy_upd_remotepush',
+
+@job_login = null, @job_password = null,
+@subscriber_security_mode = 1,
+@frequency_type = 64,
+
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 20060108,
+@active_end_date = 99991231,
+@enabled_for_syncmgr =  'False'
+go
+
+/* Configure the security information using sp_link_publication on the
+Subscriber server*/
+
+use mysalescopy_upd_remotepush
+go
+
+exec sp_link_publication
+@publisher =    'BIOREPL\BIOREPL_PEER',
+@publisher_db =    'mysales_copy',
+@publication =    'pub_updsub_mysales_copy',
+
+@distributor =    'BIOREPL\BIOREPL_PEER',
+
+@security_mode = 0,
+@login =    'spaul',
+@password = null
+go
+
+Listing 9-15. Configuration of the Push Subscription for Queued Updating
+/* Add the push subscription on the Publisher server */
+
+use mysales_copy
+go
+
+exec sp_addsubscription @publication =    'pub_updsub_mysales_copy',
+@subscriber =    'BIOREPL\BIOREPL_PEER',
+@destination_db =    'mysalescopy_qud_remotepush',
+
+@subscription_type =    'Push',
+@sync_type =    'automatic',
+@article = 'all',
+
+@update_mode = 'queued failover',
+@subscriber_type = 0
+
+/* Add the push subscription agent on the Publisher */
+
+exec sp_addpushsubscription_agent @publication =
+'pub_updsub_mysales_copy',
+@subscriber =    'BIOREPL\BIOREPL_PEER',
+@subscriber_db =    'mysalescopy_qud_remotepush',
+
+@job_login = null, @job_password = null,
+@subscriber_security_mode = 1,
+@frequency_type = 64,
+
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+
+@frequency_subday = 0, @frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 20060108,
+@active_end_date = 99991231,
+@enabled_for_syncmgr =    'False'
+go
+
+/* Add the sp_link_publication since the subscription has the
+@update_mode parameter
+Set to 'queued failover' */
+
+/* Execute this on the subscription database on the Subscriber server */
+
+use mysalescopy_qud_remotepush
+go
+
+exec sp_link_publication @publisher =
+'BIOREPL\BIOREPL_PEER',
+@publisher_db = 'mysales_copy',
+@publication ='pub_updsub_mysales_copy',
+
+@distributor = 'BIOREPL\BIOREPL_PEER',
+@security_mode = 0, @login =    'sa',
+@password = null
+go
+
+
+Listing 9-16. Configuring a Pull Subscription for Queued Updating
+/* 1. Execute this on the subscription database on the Subscriber server */
+
+use mysalescopy_qud_remotepull
+go
+
+exec sp_addpullsubscription @publisher =
+'BIOREPL\BIOREPL_PEER',
+ @publication ='pub_updsub_mysales_copy',
+@publisher_db = 'mysales_copy',
+
+@independent_agent ='True',
+@subscription_type ='pull',
+@update_mode = 'queued failover',
+
+@immediate_sync = 1
+
+/* 2. Configure the security settings since the subscription has @update_mode
+parameter set to 'queued failover' */
+/* Execute this on the Subscriber server */
+
+exec sp_link_publication @publisher = 'BIOREPL\BIOREPL_PEER',
+@publication = 'pub_updsub_mysales_copy',
+@publisher_db ='mysales_copy',
+
+@security_mode = 0,
+@login ='sa',
+@password = null
+
+exec sp_addpullsubscription_agent @publisher =
+'BIOREPL\BIOREPL_PEER',
+@publisher_db = 'mysales_copy',
+@publication = 'pub_updsub_mysales_copy',
+
+@distributor = 'BIOREPL\BIOREPL_PEER',
+@distributor_security_mode = 1,
+@distributor_login = '',
+
+@distributor_password = null,
+@enabled_for_syncmgr = 'False',
+@frequency_type = 64,
+
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+
+@active_end_time_of_day = 235959,
+@active_start_date = 20060108,
+@active_end_date = 99991231,
+
+@alt_snapshot_folder = '',
+@working_directory =    '',
+@job_login = null,
+
+@job_password = null,
+@publication_type = 0
+Go
+
+/* Add the subscription on the Publisher server */
+
+use mysales_copy
+go
+
+exec sp_addsubscription @publication =
+'pub_updsub_mysales_copy',
+@subscriber =    'BIOREPL\BIOREPL_PEER',
+@destination_db =    'mysalescopy_qud_remotepull',
+
+@sync_type = 'Automatic',
+@subscription_type = 'pull',
+@update_mode = 'queued failover'
+GO
+
+
+Listing 9-17. Verifying the Subscription Supports the Failover Option
+/* Execute this on the publication database for the push subscription */
+Use mysales_copy
+Go
+
+sp_helpsubscription 'pub_updsub_mysales_copy'
+go
+
+Listing 9-18. Changing the Mode of the Updatable Subscription
+/* Execute this on the subscription database on the Subscriber server */
+
+sp_setreplfailovermode 'BIOREPL_PEER','mysales_copy',
+'pub_updsub_mysales_copy','queued'
+
+
+Listing 9-19. Adding the Publication on Node A, BIOREPL Server
+/*Execute this on the BIOREPL server */
+
+use purchaseorder_repl
+go
+
+select DATABASEPROPERTYEX ('purchaseorder_repl', 'IsSyncWithBackup')
+go
+/* If the preceding select statement returns 0, execute
+ sp_replicationdboption. If it returns a value of 1,
+the database is enabled for publication.*/
+
+sp_replicationdboption @dbname='purchaseorder_repl',
+@optname='publish',
+@value='true'
+go
+
+sp_addpublication @publication='pub_purchaseorder_repl',
+@restricted='false',
+@sync_method='native',
+
+@repl_freq='continuous',
+@allow_push='true',
+
+@allow_pull='true',
+
+@immediate_sync='true',
+@allow_sync_tran='false',
+
+@autogen_sync_procs='false',
+@retention=60,
+@independent_agent='true',
+
+@enabled_for_p2p='true',
+@status='active',
+@allow_initialize_from_backup='true'
+go
+
+
+Listing 9-20. Adding the Articles to the Publication on Node A
+/*Execute this on the publication database */
+use purchaseorder_repl
+go
+
+sp_addarticle @publication='pub_purchaseorder_repl',
+@article='vendor',
+@source_owner='dbo',
+
+@source_object='vendor',
+@destination_table='[BIO-REPL\BIOREPL_PEER].[purchaseorder_peer].[vendor]',
+
+@type='logbased',
+@creation_script='null',
+@schema_option='null',
+
+@status=16,
+@ins_cmd='CALL sp_ins_vendor',
+@del_cmd='XCALL sp_del_vendor',
+
+@upd_cmd='XCALL sp_upd_vendor',
+@sync_object='null'
+Go
+
+
+Listing 9-21. Adding the Subscription on Node A
+/* Execute this on the subscription database on node A, BIOREPL server */
+
+exec sp_addsubscription @publication='pub_purchaseorder_repl',
+@subscriber ='BIOREPL\BIOREPL_PEER',
+@destination_db ='purchaseorder_peer',
+
+@subscription_type = 'Push',
+@sync_type = 'replication support only',
+@article = 'all',
+
+@subscriber_type = 0
+Go
+
+Listing 9-22. Adding the Push Subscription Agent on Node A
+/* Execute this on node A, BIOREPL server, on the publication database */
+
+exec sp_addpushsubscription_agent
+@publication='pub_purchaseorder_repl',
+ @subscriber =  'BIOREPL\BIOREPL_PEER',
+@subscriber_db =  'purchaseorder_peer',
+
+@job_login = null,
+@job_password = null,
+@subscriber_security_mode = 1,
+
+@frequency_type = 64,
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+@active_start_date = 20060111,
+
+@active_end_date = 99991231,
+@enabled_for_syncmgr =  'False',
+@dts_package_location = 'Distributor'
+
+Listing 9-23. Adding the Publication on Node B
+/*Execute this on node B, BIOREPL_PEER server */
+/*Execute on the publication database */
+
+use purchaseorder_peer
+go
+
+select DATABASEPROPERTYEX ('purchaseorder_peer', 'IsSyncWithBackup')
+go
+/* If the preceding select statement returns 0, execute
+ sp_replicationdboption. If it returns a value of 1,
+the database is enabled for publication. Go straight to
+addition of the publication*/
+
+sp_replicationdboption @dbname='purchaseorder_peer',
+@optname='publish',
+@value='true'
+go
+
+/*Addition of the publication*/
+sp_addpublication @publication='pub_purchaseorder_peer',
+@restricted='false',
+@sync_method='native',
+@repl_freq='continuous',
+
+@status='active',
+@allow_push='true',
+@allow_pull='true',
+
+@immediate_sync='false',
+@allow_sync_tran='false',
+@autogen_sync_procs='false',
+
+@retention=60,
+@independent_agent='true',
+@enabled_for_p2p='true',
+
+@status='active',
+@allow_initialize_from_backup='true'
+go
+
+
+Listing 9-24. Adding the Articles to the Publication on Node B, BIOREPL_PEER
+/* Add this article to the publication */
+/*Execute this on the publication database */
+use purchaseorder_peer
+go
+
+exec sp_addarticle @publication='pub_purchaseorder_peer',
+@article='vendor',
+@source_owner='dbo',
+
+@source_object='vendor',
+@destination_table='[BIO-REPL\REPL].[purchaseorder_peer].[vendor]',
+@type='logbased',
+
+@creation_script='null',
+@schema_option='null',
+@status=16,
+
+@ins_cmd='CALL sp_ins_vendor',
+@del_cmd='XCALL sp_del_vendor',
+@upd_cmd='XCALL sp_upd_vendor',
+
+@sync_object=null
+Go
+
+
+Listing 9-25. Adding the Subscription on Node B, BIOREPL_PEER
+/* Execute this on the subscription database on the BIOREPL_PEER server */
+
+exec sp_addsubscription @publication='pub_purchaseorder_peer',
+@subscriber ='BIOREPL\BIOREPL',
+@destination_db ='purchaseorder_peer',
+
+@subscription_type = 'Push',
+@sync_type = 'replication support only',
+@article = 'all',
+
+@subscriber_type = 0
+Go
+
+
+Listing 9-26. Add the Push Subscription Agent on Node B, BIOREPL_PEER
+/* Execute this on the publication database on node B */
+exec sp_addpushsubscription_agent
+@publication='pub_purchaseorder_repl',
+@subscriber =  'BIOREPL\BIOREPL',
+@subscriber_db =  'purchaseorder_peer',
+
+@job_login = null,
+@job_password = null,
+@subscriber_security_mode = 1,
+
+@frequency_type = 64,
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+
+ @active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+@active_start_date = 20060111, @active_end_date = 99991231,
+
+@enabled_for_syncmgr =  'False',
+@dts_package_location = 'Distributor'
+
+Listing 9-27. Adding the Log Reader Agent on Both the Nodes
+/* Execute this on the BIOREPL(A) node */
+
+sp_addlogreader_agent @joblogin='spaul',
+@jobpassword='****',
+@publisher_security_mode=1,
+
+@publisher_login='spaul'
+@publisher_password='password',
+go
+
+/* Execute this on the BIOREPL_PEER(B) node */
+
+sp_addlogreader_agent @joblogin='spaul',
+@jobpassword='****',
+@publisher_security_mode=1,
+
+@publisher_login='spaul'
+@publisher_password='password',
+Go
+
+Listing 9-28. Ensuring That All the Peer-to-Peer Nodes Have Received the Data
+/*1. Execute this on the purchaseorder_repl publication database on
+the BIOREPL server */
+/* insert the row first on the publication database */
+
+insert into vendor values
+(2,'Fern's Gardens','24 Wayne Blvd.','Toronto','M5H 2KL',
+'1-800-123-4567')
+go
+
+/* 2. Execute this on the BIOREPL_PEER server node*/
+
+/* Retrieve the data */
+
+select id,publication, sent_date, description from MSpeer_request
+go
+
+
+Listing 9-29. Ensuring BIOREPL_PEER Receives the Responses in the Result Set
+ /* Execute this on the publication database on the node that is being checked */
+
+Sp_helppeerresponses '4'
+Go
+
+
+Listing 9-30. Adding the Publication in mysales
+/*Execute this on the master database */
+
+use master
+go
+
+---Enable the databases for transactional publishing.
+
+EXEC sp_replicationdboption @publication='mysales',
+@optname='publish',
+@value=true;
+EXEC sp_replicationdboption @publication='mysales2',
+@optname='publish',
+@value= true;
+GO
+
+Listing 9-31. Adding the Publication, Articles, and Log Reader Agent for the mysales Database
+/*Execute this on the mysales database */
+
+DECLARE @publication AS sysname;
+DECLARE @article1 AS sysname;
+DECLARE @article2 AS sysname;
+DECLARE @login AS sysname;
+DECLARE @password AS varchar(512);
+SET @publication = 'bidirectional_mysalespub';
+SET @article1 = 'Item1';
+SET @article2 = 'Item2';
+SET @login = 'sa';
+SET @password = 'sujoy';
+
+--- Add the publication -----
+use mysales
+
+EXEC sp_addpublication @publication = @publication,
+@restricted = 'false',
+@sync_method = 'native',
+@repl_freq = 'continuous',
+@description = 'publ1',
+@status = 'active',
+@allow_push = 'true',
+@allow_pull = 'true',
+@allow_anonymous = 'false',
+@enabled_for_internet = 'false',
+@independent_agent = 'false',
+@immediate_sync = 'false',
+@allow_sync_tran = 'false',
+@autogen_sync_procs = 'false',
+@retention = 60;
+
+
+--- Add the articles ---
+
+EXEC sp_addarticle @publication = @publication,
+@article = @article1,
+@source_owner = 'myinventory',
+@source_object = @article1,
+@destination_table = @article2,
+@type = 'logbased',
+@creation_script = null,
+@description = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x00000000000000F1,
+@status = 16,
+@vertical_partition = 'false',
+@ins_cmd = 'CALL  sp_MSins_myinventoryItem ',
+@del_cmd = 'XCALL sp_MSdel_myinventoryItem',
+@upd_cmd = 'XCALL sp_MSupd_myinventoryItem',
+@filter = null,
+@sync_object = null;
+GO
+
+--- Add the Log Reader Agent
+
+EXEC sp_addlogreader_agent
+@job_login = @login,
+@job_password = @password,
+@publisher_security_mode = 1;
+go
+
+
+Listing 9-32. Adding the Publication, Articles, and Log Reader Agent for the mysales2 Database
+/*Execute this on the mysales2 database */
+
+DECLARE @publication AS sysname;
+DECLARE @article1 AS sysname;
+DECLARE @article2 AS sysname;
+DECLARE @login AS sysname;
+DECLARE @password AS nvarchar(512);
+SET @publication = 'bidirectional_mysalespub2';
+SET @article1 = `item’;
+SET @article2 = 'Item2';
+SET @login = 'sa';
+SET @password = 'sujoy';
+
+
+--- Add the publication -----
+
+EXEC sp_addpublication @publication = @publication,
+@restricted = 'false',
+@sync_method = 'native',
+@repl_freq = 'continuous',
+@description = 'pub2',
+@status = 'active',
+@allow_push = 'true',
+@allow_pull = 'true',
+@allow_anonymous = 'false',
+@enabled_for_internet = 'false',
+@independent_agent = 'false',
+@immediate_sync = 'false',
+@allow_sync_tran = 'false',
+@autogen_sync_procs = 'false',
+@retention = 60;
+
+
+--- Add the articles ---
+
+EXEC sp_addarticle @publication = @publication,
+@article = @article2,
+@source_owner = 'myinventory',
+@source_object = @article2,
+@destination_table = @article1,
+@type = 'logbased',
+@creation_script = null,
+@description = null,
+@pre_creation_cmd = 'drop',
+@schema_option = 0x00000000000000F1,
+@status = 16,
+@vertical_partition = N'false',
+@ins_cmd = 'CALL  sp_MSins_myinventoryItem2 ',
+@del_cmd = 'XCALL sp_MSdel_myinventoryItem2',
+@upd_cmd = 'XCALL sp_MSupd_myinventoryItem2',
+@filter = null,
+@sync_object = null;
+
+
+--- Add the Log Reader Agent
+EXEC sp_addlogreader_agent
+@job_login = @login,
+@job_password = @password,
+@publisher_security_mode = 1;
+go
+
+Listing 9-33. Adding Subscriptions for Both Databases
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+--Add the transactional subscription in mysales and mysales2
+
+USE $(db)   ----mysales and mysales2
+GO
+
+DECLARE @publication AS sysname;
+DECLARE @subscriber AS sysname;
+DECLARE @subscription_db AS sysname;
+
+SET @publication = '$(pubname)';
+SET @subscriber = @@SERVERNAME;
+/* for mysales the subdbname should be mysales2 and vice versa */
+SET @subscription_db = '$(subdbname)';
+
+EXEC sp_addsubscription @publication = @publication,
+@article = 'all',
+@subscriber = @subscriber,
+@destination_db = @subscription_db,
+@sync_type = 'none',
+@status = 'active',
+@update_mode = '$(value)',  --set to read-only by default
+@loopback_detection = '$(boolean)'; --- must be true for bidirectional
+
+EXEC sp_addpushsubscription_agent
+@publication = @publication,
+@subscriber = @subscriber,
+@subscriber_db = @subscription_db,
+@job_login = $(user),
+@job_password = $(pwd);
+GO
+
+Listing 9-34. Creating Insert Stored Procedures on Both Publication Databases, mysales and mysales2
+-- Insert procedure, [sp_MSins_myinventoryItem] and [sp_MSins_myinventoryItem1]
+
+create procedure [dbo].$[name]
+@c1 int,@c2 varchar(30),@c3 int,@c4 varchar(20),@c5 varchar(10),@c6 char(4)
+as
+
+insert into "myinventory"."Item"(
+ "ItemID"
+,"Description"
+,"Vendor"
+,"Category"
+,"Color"
+,"Unit"
+ )
+values (
+ @c1
+,@c2
+,@c3
+,@c4
+,@c5
+,@c6
+ )
+
+Listing 9-35. Creating Delete Stored Procedures on Both Publication Databases, mysales and mysales2
+create procedure [dbo].[sp_MSdel_myinventoryItem]
+@pkc1 int
+as
+delete "myinventory"."Item"
+where "ItemID" = @pkc1
+go
+
+Listing 9-36. Creating Update Stored Procedures on Both Publication Databases, mysales and mysales2
+create procedure [dbo].[sp_MSupd_myinventoryItem]
+ --Primary key is @c1
+@old_c1 int int,@old_c2 varchar(30),old_@c3 int,@old_c4
+ varchar(20),@old_c5 varchar(10),@old_c6 char(4),
+@c1 int int,@c2 varchar(30),@c3 int,@c4 varchar(20),@c5 varchar(10),@c6 char(4)
+as
+DECLARE  @curr_c1 int, @curr_c3 int,@curr_c2 varchar(30),
+@curr_c2 varchar(20),@curr_c5 varchar(10),@curr_c2 char(4);
+
+select @curr_c3=Vendor,@curr_c2=Description,
+ @curr_c4=Category,@curr_c5=Color,@curr_c6=Unit
+from myinventory.Item where ItemID=@c1;
+
+--Add values for conflicts on int columns; don't add for primary key columns
+
+IF @curr_c3 != @old_c3
+SELECT @c3 = @curr_c3 +
+(@c3 - @old_c3);
+
+-- Concatenate values for conflicts on varchar columns
+
+IF @curr_c2 != @old_c2
+SELECT @c2 = rtrim(@curr_c2) +
+'_' + rtrim(@c2);
+IF @curr_c4 != @old_c4
+SELECT @c4 = rtrim(@curr_c4) +
+'_' + rtrim(@c4);
+IF @curr_c5 != @old_c5
+SELECT @c5 = rtrim(@curr_c5) +
+'_' + rtrim(@c5);
+IF @curr_c6 != @old_c6
+SELECT @c6 = rtrim(@curr_c6) +
+'_' + rtrim(@c6);
+
+--Update item table
+
+UPDATE myinventory.Item SET Vendor = @c3,
+Description = @c2,
+Category =@c4,
+Color =@c5,
+Unit =@c6
+WHERE ItemId = @old_c1;
+go
+
+

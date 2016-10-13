@@ -1,0 +1,518 @@
+Chap16
+
+
+Listing 16-1. Validating All Subscriptions for a Merge Publication
+/*Execute this on the publication database */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/*Specification of the level --- rowcount and binary checksum */
+
+:setvar level 3
+
+/*Execute this on the publication database */
+
+use $(db)
+go
+
+/*Need the publication name and the level */
+
+sp_validatemergepublication '$(mergepublication)',$(level)
+go
+
+
+
+Listing 16-2. Checking Whether the Database Is Set for Merge Publication
+/*Execute this on the publication database */
+Use mysales_merge
+Go
+
+/*Find the name of the database and the category */
+select name,category from sys.sysdatabases
+/*category=4 means that it is set for merge publication*/
+where category=4
+go
+
+
+
+Listing 16-3. Checking the Validation of the Database
+/* execute this on the publication database */
+Use mysales_merge
+Go
+
+select b.name as [publication name], a.schematype,
+b.publisher,
+b.publisher_db
+from sysmergeschemachange a,
+sysmergepublications b
+where a.pubid=b.pubid and
+a.schematype=66
+go
+
+
+
+Listing 16-4. Executing the Merge Agent
+/* Can be used as a batch file */
+/*Step 1: Declare the variables first */
+
+declare @cmd varchar(4000),
+@publisher varchar(100),
+@publicationDB varchar(100),
+@publication varchar(100),
+@subscriptionDB varchar(100),
+@login varchar(3),
+@password varchar(6)
+
+/*Step 2: Assign values to the variables */
+
+set @publisher='BIOREPL\BIOREPL_TEST'
+set @publicationDB='mysales_merge'
+set @publication='pub_download_mysalesmerge'
+set @subscriptionDB=''mysalesmerge_remote_exportpulldownload1'
+set @login='xxxx'
+set @password='xxxx'
+
+/Step 3: Assign the parameters to the Merge Agent and
+store them in the @cmd variable */
+/* The following command should be all on one line. It is displayed on multiple
+lines here because of the limitations of the page. */
+
+set @cmd='"C:\Program Files\Microsoft SQL Server\100\COM\REPLMERG.EXE"
+-Publication @publication
+-Publisher @publisher
+-Subscriber  @publisher
+-Distributor @publisher
+-PublisherDB @publicationDB
+-SubscriberDB @subscriptionDB
+-PublisherSecurityMode 0
+-PublisherLogin @login
+-PublisherPassword @password
+-OutputVerboseLevel 2
+-SubscriberSecurityMode 0
+-SubscriberLogin @login
+-SubscriberPassword @password
+-SubscriptionType 1
+-DistributorSecurityMode 0
+-DistributorLogin @login
+-DistributorPassword @password
+-Validate 3
+-ParallelUploadDownload 0'
+
+/*execute the @cmd variable with the xp_cmdshell*/
+exec xp_cmdshell '@cmd'
+go
+
+
+Listing 16-5. Adding a Merge Subscription for Use with sqlcmd
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+/* Execute this on the Publisher server */
+
+use $(pubdb)
+go
+exec sp_addmergesubscription @publication ='$(pubname)',
+@subscriber='$(server)',
+@subscriber_db='$(subdb)',
+@subscription_type ='$(subtype)',
+@sync_type ='$(synctype)',
+@subscriber_type ='$(subscribertype)',
+@subscription_priority=0,
+@description = null,
+@use_interactive_resolver='$(boolean)'
+Go
+
+
+
+Listing 16-6. Adding the Job for the Push Merge Subscription Agent
+/*Execute this on the publication database */
+sp_addmergepushsubscription_agent @publication='$(pubname)',
+@subscriber = '$(server)', @subscriber_db ='$(subdb)',
+@subscriber_security_mode = 0,
+@subscriber_login = '$(user)', @subscriber_password =
+'$(pwd)', @publisher_security_mode = 1,
+@enabled_for_syncmgr = '$(boolean)'
+go
+
+
+
+Listing 16-7. Calling One File from Within Another File
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/* Execute this on the publisher server */
+
+use $(pubdb)
+go
+exec sp_addmergesubscription @publication ='$(pubname)',
+@subscriber='$(server)',
+@subscriber_db='$(subdb)',
+@subscription_type ='$(subtype)',
+@sync_type ='$(synctype)',
+@subscriber_type ='$(subscribertype)',
+@subscription_priority=0,
+@description = null,
+@use_interactive_resolver='$(boolean)'
+Go
+WAITFOR DELAY '00:00:05'
+
+declare @filelist table
+( fileexist int,
+filedir int,
+parentdir int
+)
+
+insert @filelist
+exec master..xp_fileexist 'C:\publishing\addmergepushsub.sql'
+end
+
+declare @fileexist int
+set @fileexist=(select fileexist from @filelist)
+if @fileexist=1
+begin
+:r C:\publishing\addmergepushsub.sql
+end
+else
+:Exit
+Go
+
+
+Listing 16-8. Enabling the Replication Alerts and Sending Out the Notifications
+/*Execute this on the msdb database */
+Use msdb
+Go
+
+/*Create a table variable to store the information from sp_help_alert */
+declare @alertlist table
+( id int,
+name sysname,
+event_source varchar(100),
+event_category_id int,
+event_id int,
+message_id int,
+severity int,
+enabled tinyint,
+delay_between_responses int,
+last_occurrence_date int,
+last_occurrence_time int,
+last_response_date int,
+last_response_time int,
+notification_message varchar(512),
+include_event_description tinyint,
+database_name sysname null,
+event_description_keyword varchar(100),
+occurrence_count int,
+count_reset_date int,
+count_reset_time int,
+job_id uniqueidentifier,
+job_name sysname null,
+has_notification int,
+flags int,
+performance_condition varchar(512),
+category_name sysname null,
+wmi_namespace sysname null,
+wmi_query varchar(512),
+type int
+)
+insert @alertlist exec
+sp_help_alert
+
+/*Declare a variable for the cursor */
+declare @alertname sysname
+
+/*Declare the cursor name updatealertnotification */
+
+declare updatealertnotification cursor for
+
+/* Do not want to enable any other replication alerts other than the ones that
+will be used for validation */
+
+/* There is a space between Replication: and S below. If you omit it,
+the engine will not return the right result set. */
+
+select name from @alertlist
+where enabled=0 and name like 'Replication: S%'
+
+/*Open the cursor */
+
+open updatealertnotification
+
+/*Fetch the first result and store it in the variable */
+
+fetch next from updatealertnotification
+into @alertname
+
+/*Check to see if there are any rows to fetch */
+
+while @@fetch_status=0
+begin
+
+/*Use sp_update_alert to enable the alerts used for validation
+for the database 'mysales_merge' */
+
+exec sp_update_alert @name=@alertname,@database_name='mysales_merge',@enabled=1,
+@include_event_description_in=4;
+
+/* The alerts are then notified using the sp_update_notification*/
+
+exec sp_update_notification @alert_name=@alertname,
+@operator_name='BIOREPL\SujoyPaul',@notification_method=4
+
+/* Then fetch the next record */
+
+fetch next from updatealertnotification
+into @alertname
+end
+
+/*Close and deallocate the cursor */
+
+close updatealertnotification
+deallocate updatealertnotification
+
+/*Finally check whether the alerts have been enabled*/
+
+select * from @alertlist
+go
+
+
+
+Listing 16-9. Configuring Log Shipping on the Primary Server
+/* Run this script on the Primary server
+The monitor server is also located on the Primary server */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+---:setvar user "sa"
+---:setvar password "sujoy"
+:connect $(server) -l $(logintimeout)
+--- -U $(user) -P $(password)
+
+/*Execute this from msdb database */
+
+use msdb
+go
+
+DECLARE @LS_BackupJobId    AS uniqueidentifier
+DECLARE @LS_PrimaryId    AS uniqueidentifier
+DECLARE @SP_Add_RetCode    As int
+
+
+EXEC @SP_Add_RetCode = master.dbo.sp_add_log_shipping_primary_database
+    @database ='$(primarydb)                  -----'mysales_snapshot'
+    ,@backup_directory ='$(backupfilepath)'   -----'D:\files'
+    ,@backup_share ='$(sharename)'            -----
+'\\BIOREPL\BIOREPL_PEER'
+    ,@backup_job_name ='$(backupjobname)'     -----'LSBackup_mysales_snapshot'
+    ,@backup_retention_period = 4320
+        ,
+/* change the variable name if the monitor server is located
+someplace other than the primary server */
+
+@monitor_server ='$(server)'     -----’BIOREPL\BIOREPL_PEER'
+    ,@monitor_server_security_mode = $(securitymode)
+    ,@backup_threshold = 60
+    ,@threshold_alert_enabled = 1
+    ,@history_retention_period = 5760
+    ,@backup_job_id = @LS_BackupJobId OUTPUT
+    ,@primary_id = @LS_PrimaryId OUTPUT
+    ,@overwrite = 1
+
+IF (@@ERROR = 0 AND @SP_Add_RetCode = 0)
+BEGIN
+
+DECLARE @LS_BackUpScheduleUID    As uniqueidentifier
+DECLARE @LS_BackUpScheduleID    AS int
+
+
+EXEC msdb.dbo.sp_add_schedule
+    @schedule_name ='($schedulename)'
+  ---'LSBackupSchedule_BIOREPL\BIOREPL_PEER'
+    ,@enabled = $(enabled)
+    ,@freq_type = 4
+    ,@freq_interval = 1
+    ,@freq_subday_type = 4
+    ,@freq_subday_interval = 15
+    ,@freq_recurrence_factor = 0
+    ,@active_start_date = 20060910
+    ,@active_end_date = 99991231
+    ,@active_start_time = 0
+    ,@active_end_time = 235900
+    ,@schedule_uid = @LS_BackUpScheduleUID OUTPUT
+    ,@schedule_id = @LS_BackUpScheduleID OUTPUT
+
+EXEC msdb.dbo.sp_attach_schedule
+    @job_id = @LS_BackupJobId
+    ,@schedule_id = @LS_BackUpScheduleID
+
+/* EXEC msdb.dbo.sp_update_job
+    @job_id = @LS_BackupJobId
+    ,@enabled = 0 */
+
+
+
+Listing 16-10. Configuring Log Shipping on the Secondary Server
+/* Run this script on the Secondary server
+The monitor server is also located on the Primary server */
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_PEER"
+---:setvar user "sa"
+---:setvar password "sujoy"
+:connect $(server) -l $(logintimeout)
+--- -U $(user) -P $(password)
+
+
+use msdb
+go
+
+DECLARE @LS_Secondary__CopyJobId    AS uniqueidentifier
+DECLARE @LS_Secondary__RestoreJobId    AS uniqueidentifier
+DECLARE @LS_Secondary__SecondaryId    AS uniqueidentifier
+DECLARE @LS_Add_RetCode    As int
+
+
+EXEC @LS_Add_RetCode = master.dbo.sp_add_log_shipping_secondary_primary
+    @primary_server = '$(primaryserver)   ---'BIOREPLBIOREPL_PEER'
+    ,@primary_database = '$(primarydb)'   --- 'mysales_snapshot'
+    ,@backup_source_directory = '$(sharename)'  ---same as specified in
+primary'\\BIOREPL\BIOREPL_PEER'
+    ,@backup_destination_directory = '$(backupfilepath)  ----'D:\files'
+    ,@copy_job_name = '$(copyjobname) ----
+'LSCopy_BIOREPL\BIOREPL_PEER_mysales_snapshot'
+    ,@restore_job_name = '$(restorejobname)'
+----'LSRestore_BIOREPL\BIOREPL_PEER_mysales_snapshot'
+    ,@file_retention_period = 4320
+    ,@monitor_server = '$(primaryserver)  ---'BIOREPL\BIOREPL_PEER'
+    ,@monitor_server_security_mode =$(securitymode)       ----1
+    ,@overwrite = 1
+    ,@copy_job_id = @LS_Secondary__CopyJobId OUTPUT
+    ,@restore_job_id = @LS_Secondary__RestoreJobId OUTPUT
+    ,@secondary_id = @LS_Secondary__SecondaryId OUTPUT
+
+IF (@@ERROR = 0 AND @LS_Add_RetCode = 0)
+BEGIN
+
+DECLARE @LS_SecondaryCopyJobScheduleUID    As uniqueidentifier
+DECLARE @LS_SecondaryCopyJobScheduleID    AS int
+
+/*create the copy schedule */
+EXEC msdb.dbo.sp_add_schedule
+    @schedule_name ='DefaultCopyJobSchedule'
+    ,@enabled = 1
+    ,@freq_type = 4
+    ,@freq_interval = 1
+    ,@freq_subday_type = 4
+    ,@freq_subday_interval = 15
+    ,@freq_recurrence_factor = 0
+    ,@active_start_date = 20060910
+    ,@active_end_date = 99991231
+    ,@active_start_time = 0
+    ,@active_end_time = 235900
+    ,@schedule_uid = @LS_SecondaryCopyJobScheduleUID OUTPUT
+    ,@schedule_id = @LS_SecondaryCopyJobScheduleID OUTPUT
+
+/*attach the schedule to the job */
+
+EXEC msdb.dbo.sp_attach_schedule
+    @job_id = @LS_Secondary__CopyJobId
+    ,@schedule_id = @LS_SecondaryCopyJobScheduleID
+
+DECLARE @LS_SecondaryRestoreJobScheduleUID    As uniqueidentifier
+DECLARE @LS_SecondaryRestoreJobScheduleID    AS int
+
+/*create the restore schedule */
+EXEC msdb.dbo.sp_add_schedule
+    @schedule_name ='DefaultRestoreJobSchedule'
+    ,@enabled = 1
+    ,@freq_type = 4
+    ,@freq_interval = 1
+    ,@freq_subday_type = 4
+    ,@freq_subday_interval = 15
+    ,@freq_recurrence_factor = 0
+    ,@active_start_date = 20060910
+    ,@active_end_date = 99991231
+    ,@active_start_time = 0
+    ,@active_end_time = 235900
+    ,@schedule_uid = @LS_SecondaryRestoreJobScheduleUID OUTPUT
+    ,@schedule_id = @LS_SecondaryRestoreJobScheduleID OUTPUT
+
+/* Attach the restore schedule to the job */
+
+EXEC msdb.dbo.sp_attach_schedule
+    @job_id = @LS_Secondary__RestoreJobId
+    ,@schedule_id = @LS_SecondaryRestoreJobScheduleID
+
+
+END
+
+
+DECLARE @LS_Add_RetCode2    As int
+
+
+IF (@@ERROR = 0 AND @LS_Add_RetCode = 0)
+BEGIN
+
+/*Add the secondary database to the secondary server */
+
+EXEC @LS_Add_RetCode2 = master.dbo.sp_add_log_shipping_secondary_database
+    @secondary_database = '$(secondarydb)'   --'mysales_snapshot'
+    ,@primary_server = '$(primaryserver)'    ---'BIOREPL\BIOREPL_PEER'
+    ,@primary_database = '$(primarydb)'      ---'mysales_snapshot'
+    ,@restore_delay = 0
+    ,@restore_mode = 1
+    ,@disconnect_users    = 1
+    ,@restore_threshold = 45
+    ,@threshold_alert_enabled = 1
+    ,@history_retention_period    = 5760
+    ,@overwrite = 1
+
+END
+
+
+/*IF (@@error = 0 AND @LS_Add_RetCode = 0)
+BEGIN
+
+EXEC msdb.dbo.sp_update_job
+    @job_id = @LS_Secondary__CopyJobId
+    ,@enabled = 1
+
+EXEC msdb.dbo.sp_update_job
+    @job_id = @LS_Secondary__RestoreJobId
+    ,@enabled = 1
+
+END
+*/
+
+
+
+
+Listing 16-11. Adding the Secondary Database Information to the Primary Server
+/* Run this script on the Primary server
+The monitor server is also located on the Primary server */
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+---:setvar user "sa"
+---:setvar password "sujoy"
+:connect $(server) -l $(logintimeout)
+--- -U $(user) -P $(password)
+
+
+use msdb
+go
+
+
+EXEC master.dbo.sp_add_log_shipping_primary_secondary
+    @primary_database = '$(primarydb)'     ----N'mysales_snapshot'
+    ,@secondary_server = '$(secondaryserver)'  ----N'BIOREPL'
+    ,@secondary_database = '$(secondarydb)'    ----N'mysales_snapshot'
+    ,@overwrite = 1
+go
+

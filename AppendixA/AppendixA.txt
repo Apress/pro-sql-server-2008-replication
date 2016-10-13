@@ -1,0 +1,404 @@
+create schema myorder
+
+--create schema myinventory;
+
+create table myorder.ZONE
+(
+ZoneID		smallint		not null,
+ZonePlace	varchar(20)	null,
+constraint PK_ZONE	primary key(ZoneID)
+)
+
+create table myorder.BillTo
+(
+BillTo			smallint		not null,
+Name			varchar(30)	null,
+WhseAddress1		varchar(30)	null,
+Whse_City		varchar(20)	null,
+Whse_Postal_Code	varchar(7)	null,
+Phone			varchar(20)	null,
+SlsPerson		int		null,
+Zone			smallint		null,
+constraint PK_BILLTO primary key(BillTo)
+)
+
+create table myorder.Stock
+(
+StockId			int	not null,
+Whse			varchar(10) null,
+QtyOnHand		decimal	null,
+QtyOnOrd		decimal null,
+QtyAvail		decimal null,
+ItemNum		varchar(50) not null,
+constraint PK_STOCK primary key(StockId)
+)
+
+create table myorder.SalesPerson
+(
+SalesID			int	not null,
+Name			varchar(30) null,
+WhseAddress1		varchar(30) null,
+Whse_City		varchar(20) null,
+Whse_Postal_Code	varchar(7)   null,
+Phone			varchar(20) null,
+Zone			smallint	     null,
+constraint PK_SALESPERSON primary key(SalesID)
+)
+
+create table myorder.Customer
+(
+CustID			int not null,
+BillTo			smallint  not null,
+Name			varchar(30)   null,
+WhseAddress1		varchar(30)   null,
+Whse_City		varchar(20)   null,
+Whse_Postal_Code	varchar(7)     null,
+Phone			varchar(20)   null,
+Email_Addr		varchar(20)   null,
+Zone			smallint	       null,
+SlsPerson		int	       null,
+constraint PK_CUSTOMER primary key(CustID)
+)
+
+create table myorder.OrderHeader
+(
+CustID			int		not null,
+OrderID			int		not null,
+Order_Date		datetime	null,
+Ship_Date		datetime	null,
+Whse			varchar(10)	null,
+Zone			smallint		null,
+PayMethod		varchar(7)	null,
+FreightCharge		bit		null,
+InvoiceNum		numeric		null,
+InvoiceDate		datetime	null,
+SlsPerson		int		null,
+constraint PK_ORDERHEADER primary key (OrderID)
+)
+
+create table myorder.OrderDetail
+(
+OrderID			int 		not null,
+ItemID			numeric		null,
+ItemDescription		varchar(30)	null,
+Qty			numeric		null,
+QtyShip			numeric		null,
+QtyBO			numeric		null,
+BOYesNo		bit		null,
+Price			decimal		null,
+Discount		decimal		null,
+Amount			decimal		null
+)
+
+create table myorder.ShipTo
+(
+CustID			int 		not null,
+ShipTo			smallint		not null,
+Name			varchar(30)	null,
+WhseAddress1		varchar(30)	null,
+Whse_Postal_Code	varchar(7)     null,
+Phone			varchar(20)   null,
+SlsPerson		int	       null,
+Zone			smallint		null,
+constraint PK_SHIPTO primary key(CustID, ShipTo)
+)
+
+create table myorder.CustSales
+(
+CustID			int 		not null,
+SalesID			int		not null,
+constraint PK_CUSTSALES primary key(CustID, SalesID)
+)
+go
+
+create schema myinventory
+
+create table myinventory.Warehouse
+(
+WhseID			int 		not null,
+WhseName		varchar(20)	null,
+WhseAddress1		varchar(30)	null,
+Whse_City		varchar(20)	null,
+Whse_Postal_Code	varchar(7)     null
+constraint PK_WAREHOUSE primary key(WhseID)
+)
+
+create table myinventory.Item
+(
+ItemID			int		not null,
+Description		varchar(30)	null,
+Vendor			int		null,
+Category		varchar(20)	null,
+Color			varchar(10)	null,
+Unit			char(4)		null
+	CONSTRAINT CKC_UNIT_ITEM check(
+		Unit in ('EA', 'BOX', 'DZ', 'PAIR')),
+constraint	PK_ITEM primary key(ItemID)
+)
+
+create table myinventory.Vendor
+(
+VendorID		numeric		not null,
+Name			varchar(30)	null,
+WhseAddress1		varchar(30)	null,
+Whse_City		varchar(20)	null,
+Whse_Postal_Code	varchar(7)     	null,
+Phone			varchar(20)	null,
+constraint PK_VENDOR primary key(VendorID)
+)
+
+create table myinventory.PurchaseOrderDetail
+(
+PoNum			numeric		not null,
+PoHNum		int		not null,
+ItemID			numeric		null,
+ItemDescription		varchar(30)	null,
+Price			decimal		null,
+Qty			numeric		null,
+BOYesNo		bit		null,
+Discount		decimal		null,
+Amount			decimal		null,
+constraint PK_PURCHASEORDERDETAIL primary key(PoNum)
+)
+
+create table [myinventory].[Pricelist]
+(
+PriceId			int		not null,
+ItemidPricelist		int		not null,
+ItemID			int		null     ,
+Price			decimal		null     ,
+Discount		decimal		null     ,
+Cost			decimal		null     ,
+constraint PK_PRICELIST primary key (PriceId, ItemidPricelist)
+)
+
+create table [myinventory].[PurchaseOrderHeader]
+(
+PoHNum		int		not null,
+VendorID		numeric		not null,
+PO_Date		datetime	null     ,
+AccountNum		numeric		null     ,
+AccountName		varchar(20)	null     ,
+constraint PK_PURCHASEORDERHEADER primary key (PoHNum)
+)
+
+create table [myinventory].[StockItem]
+(
+StockId			int		not null,
+ItemID			int		not null,
+constraint PK_STOCKITEM primary key (StockId, ItemID)
+)
+
+go
+
+create SCHEMA myfinance
+
+create table [myfinance].[CashReceipt]
+(
+CustID			int		null      ,
+Receiptdate		datetime	null      ,
+ReferenceOrderNum	numeric(10)	null      ,
+ReceiptAmount		decimal(6,2)	null      ,
+UnappliedAmount	decimal(6,2)	null      ,
+GLnum			varchar(30)	null      ,
+Posted			bit		null      ,
+CRID			integer		not null ,
+constraint PK_CASHRECEIPT primary key (CRID)
+)
+
+create table [myfinance].[AccountsReceivable]
+(
+AccountID		int		not null,
+InvoiceNo		int		not null,
+CustID			int		not null,
+Amount			decimal		null     ,
+InvoiceDate		datetime	null     ,
+PaymentStatus		bit		null     ,
+ReferenceNum		int		null     ,
+Balancedue		decimal(6,2)	null     ,
+InvoiceDuedate		datetime	null     ,
+GLAccount		varchar(30)	null     ,
+constraint PK_ACCOUNTSRECEIVABLE primary key (AccountID, InvoiceNo)
+)
+
+create table [myfinance].[AccountInvoice]
+(
+AccountID		int		not null,
+InvoiceNo		int		not null,
+CRID			integer		null     ,
+constraint PK_ACCOUNTINVOICE primary key (AccountID, InvoiceNo)
+)
+go
+
+alter table [myinventory].[PurchaseOrderHeader] add constraint
+FK_PURCHASE_RELATION_VENDOR foreign key  (VendorID)
+references [myinventory].[Vendor] (VendorID)
+go
+
+alter table [myorder].[OrderHeader] add constraint FK_ORDERHEA_REF_185_CUSTOMER
+foreign key  (CustID)
+references [myorder].[Customer] (CustID)
+go
+
+alter table [myfinance].[AccountsReceivable] add constraint
+FK_ACCOUNTS_REF_188_CUSTOMER foreign key  (CustID)
+references [myorder].[Customer] (CustID)
+go
+
+alter table [myorder].[OrderDetail] add constraint FK_ORDERDET_REF_233_ORDERHEA
+foreign key (orderID)
+references [myorder].[OrderHeader] (OrderID)
+go
+
+alter table [myorder].[ShipTO] add constraint FK_SHIPTO_REF_220_CUSTOMER
+foreign key (CustID)
+references [myorder].[Customer] (CustID)
+go
+
+alter table [myorder].[CustSales] add constraint FK_CUSTSALE_REF_2432_CUSTOMER
+foreign key (CustID)
+references [myorder].[Customer] (CustID)
+go
+
+alter table [myorder].[CustSales] add constraint FK_CUSTSALE_REF_243_SALESPER
+foreign key (SalesID)
+references [myorder].[SalesPerson] (SalesID)
+go
+
+alter table [myinventory].[StockItem] add constraint FK_STOCKITE_RELATION_STOCK
+foreign key (StockID)
+references [myorder].[Stock] (StockId)
+go
+
+alter table [myinventory].[StockItem] add constraint FK_STOCKITE_RELATION_ITEM
+foreign key (ItemID)
+references [myinventory].[Item] (ItemID)
+go
+
+alter table [myinventory].[PurchaseOrderDetail] add constraint
+FK_PURCHASE_RELATION_PURCHASE foreign key (PoHNum)
+references [myinventory].[PurchaseOrderHeader] (PoHNum)
+go
+
+alter table [myinventory].[Pricelist] add constraint FK_PRICELIS_RELATION_ITEM
+foreign key (ItemID)
+references [myinventory].[item] (ItemID)
+go
+
+alter table [myfinance].[AccountInvoice] add constraint
+FK_ACCOUNTI_RELATION_ACCOUNT foreign key (AccountID, InvoiceNo)
+references [myfinance].[AccountsReceivable] (AccountID, InvoiceNo)
+go
+
+create view [myorder].[vw_CustomerInvoiceStatus] as
+select b.custid, a.amount, a.invoicedate,a.paymentstatus, a.balancedue,
+a.invoiceduedate, b.name as customername, b.phone, c.name as salespersoname,
+c.zone
+from myorder.customer as b, myfinance.accountsreceivable as a,
+myorder.custsales as d, myorder.salesperson as c
+where a.Custid = b.custid
+and b.custid = d.custid
+and d.salesid = c.salesid
+go
+
+create view [myorder].[vw_ItemEnquiry] as
+select a.itemid, a.description, b.price, d.stockid, d.whse, d.qtyonhand, d.qtyonord
+from myinventory.item as a, myinventory.pricelist as b, myinventory.stockitem as c, 
+myorder.stock as d
+where a.itemid = b.itemid
+and b.itemid = c.itemid
+and c.itemid = d.stockid
+go
+
+create view [myorder].[vw_OrderStatus] as
+select a.custid, a.name, b.orderid, b.ship_date, c.itemid, c.itemdescription,
+c.qtyship, c.qty
+from customer a, orderheader b, OrderDetail c
+where a.custid = b.custid
+and b.orderid = c.OrderID
+go
+
+IF OBJECT_ID ( 'myorder.usp_GetCustomerInvoicePaymentDue', 'P') IS NOT NULL
+DROP PROCEDURE myorder.usp_GetCustomerInvoicePaymentDue;
+go
+
+CREATE PROCEDURE myorder.usp_GetCustomerInvoicePaymentDue
+@customername varchar(40)
+
+AS
+set nocount on
+
+if(select paymentstatus from myorder.vw_CustomerInvoiceStatus)>0
+begin
+select custid,amount,customername,
+case when datepart(dd,invoicedate)>datepart(dd,invoiceduedate)
+then invoicedate end
+from myorder.vw_CustomerInvoiceStatus
+where customername=@customername
+end
+
+select SUM(amount) as TotalAmount, MAX(Amount) as MaxAmount, custid,customername
+from myorder.vw_CustomerInvoiceStatus
+group by amount, custid,customername
+having custid > 1
+
+go
+
+IF OBJECT_ID ('myorder.usp_InsertCustomerInvoice', 'P' ) IS NOT NULL
+DROP PROCEDURE myorder.usp_InsertCustomerInvoice;
+go
+
+CREATE PROCEDURE myorder.usp_InsertCustomerInvoice
+@accountid int,
+@invoiceno int,
+@custid int,
+@amount decimal,
+@invoicedate datetime,
+@paymentstatus bit,
+@referencenum bit,
+@balancedue decimal(6,2),
+@invoiceduedate datetime,
+@glaccount varchar(30)
+
+AS
+set nocount on
+
+INSERT myfinance.AccountsReceivable(AccountID, InvoiceNo, CustID,  Amount,
+InvoiceDate,
+PaymentStatus, ReferenceNum, Balancedue, InvoiceDuedate, GLAccount)
+SELECT
+@accountid,
+@invoiceno,
+@custid,
+@amount,
+@invoicedate,
+@paymentstatus,
+@referencenum,
+@balancedue,
+@invoiceduedate,
+@glaccount
+
+if @@rowcount<>0
+select a.custid, a.name as Customername, a.phone, a.slsperson,
+b.amount, b.invoicedate
+from myorder.customer a, myfinance.accountsreceivable b
+where a.custid=@custid
+go
+
+IF OBJECT_ID ('myinventory.usp_GetItemAbovePremiumPrice', 'P') IS NOT NULL
+DROP PROCEDURE myinventory.usp_GetItemAbovePremiumPrice;
+go
+
+CREATE PROCEDURE myinventory.usp_GetItemAbovePremiumPrice
+AS
+declare @avgprice decimal
+set @avgprice=(select avg(price) from myinventory.pricelist)
+select a.itemid, a.description, a.vendor, a.category, a.color, a.unit,
+b.price
+from myinventory.item a, myinventory.pricelist b
+where a.itemid=b.itemid and
+b.price>@avgprice
+go
+	
+
+

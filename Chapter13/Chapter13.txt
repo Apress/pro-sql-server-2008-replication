@@ -1,0 +1,1943 @@
+Chap13
+
+
+Listing 13-1. Setting Up the Database for Merge Replication and Creating a Publication
+/* Use the Publisher server to enable merge replication */
+
+use master
+go
+sp_replicationdboption @dbname = 'mysales_merge1',
+@optname = 'merge publish',
+@value = 'true'
+go
+
+/* Create the merge publication on the mysales_merge1 database */
+
+use [mysales_merge1]
+go
+
+/*Add the publication 'pub_download_mysalesmerge' */
+
+sp_addmergepublication @publication = 'pub_downloadonly_mysalesmerge',
+@sync_mode = 'native',
+@retention = 14,
+@allow_push = 'true',
+@allow_pull = 'true',
+@allow_anonymous = 'true',
+@enabled_for_internet = 'false',
+@snapshot_in_defaultfolder = 'true',
+@allow_subscription_copy = 'false',
+@dynamic_filters = 'false',
+@conflict_retention = 14,
+@keep_partition_changes = 'false',
+@max_concurrent_merge = 0,
+@max_concurrent_dynamic_snapshots = 0,
+@use_partition_groups = 'false',
+@publication_compatibility_level = '90RTM',
+@replicate_ddl = 1,
+@allow_subscriber_initiated_snapshot = 'false',
+@allow_web_synchronization = 'false',
+@allow_partition_realignment = 'true',
+@retention_period_unit = 'days',
+@conflict_logging = 'both',
+@automatic_reinitialization_policy = 0
+go
+
+
+
+Listing 13-2. Creating the Snapshot Agent and Access to the Publication
+/* Execute this on the publication database */
+
+use [mysales_merge1]
+go
+
+/* Create the Snapshot Agent */
+
+frequency_relative_interval = 1,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 1,
+@frequency_subday_interval = 5,
+@active_start_time_of_day = 500,
+@active_end_time_of_day = 235959,
+@active_start_date = 0,
+@active_end_date = 0,
+@job_login = 'BIOREPL\Sujoy Paul',
+@job_password = null,
+@publisher_security_mode = 0,
+@publisher_login = 'sa', @publisher_password = ''
+
+/*Grant publication access */sp_addpublication_snapshot @publication = 'pub_downloadonly_mysalesmerge',
+@frequency_type = 4,
+@frequency_interval = 14,
+@
+
+exec sp_grant_publication_access @publication = 'pub_downloadonly_mysalesmerge',
+@login = 'sa'
+go
+
+
+
+Listing 13-3. Adding Download-Only Articles for Merge Publication
+/* Execute this on the publication database */
+
+Use mysales_merge1
+Go
+
+/* Add the merge article, Item, to the publication */
+
+sp_addmergearticle @publication = 'pub_downloadonly_mysalesmerge',
+@article = 'Item',
+@source_owner = 'myinventory',
+@source_object = 'Item',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'false',
+@check_permissions = 0,
+@subscriber_upload_options = 2,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge1]
+go
+
+/* Add the merge article, SalesPerson, to the publication */
+sp_addmergearticle @publication = 'pub_downloadonly_mysalesmerge',
+@article = 'SalesPerson',
+@source_owner = 'myorder',
+@source_object = 'SalesPerson',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'false',
+@check_permissions = 0,
+@subscriber_upload_options = 2,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+use [mysales_merge1]
+go
+
+/* Add the merge article, Warehouse, to the publication */
+
+sp_addmergearticle @publication = 'pub_downloadonly_mysalesmerge',
+@article = 'Warehouse',
+@source_owner = 'myinventory',
+@source_object = 'Warehouse',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'false',
+@check_permissions = 0,
+@subscriber_upload_options = 2,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge1]
+go
+
+/* Add the merge article, PriceList, to the publication */
+
+sp_addmergearticle @publication = 'pub_downloadonly_mysalesmerge',
+@article = 'PriceList',
+@source_owner = 'myinventory',
+@source_object = 'PriceList',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'false',
+@check_permissions = 0,
+@subscriber_upload_options = 2,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+go
+
+
+Listing 13-4. Starting the Snapshot Agent Job
+/* Execute this stored procedure on the publication database */
+
+Use [mysales_merge1]
+Go
+
+/* Start the Snapshot Agent job to generate the initial
+snapshot for the publication */
+
+Exec sp_startpublication_snapshot 'pub_downloadonly_mysalesmerge'
+Go
+
+
+Listing 13-5. Setting Up the Publication for Standard Articles
+/* Enable the database for replication by executing this on the
+master database.*/
+
+use master
+exec sp_replicationdboption @dbname = 'mysales_merge2',
+@optname = 'merge publish',
+@value = 'true'
+go
+
+/*Add the merge publication for standard articles using the default
+agent schedule.*/
+/* Execute this on the publication database. */
+
+use [mysales_merge2]
+go
+
+sp_addmergepublication @publication = 'pub_stdpub_mysalesmerge2',
+/* Need to add @publication_compatibility_level='100RTM'
+when @conflict_logging is set to 'both' */
+
+@publication_compatibility_level='100RTM',
+@sync_mode = 'native',
+@retention = 14,
+@allow_push = 'true',
+@allow_pull = 'true',
+@allow_anonymous = 'true',
+@snapshot_in_defaultfolder = 'true',
+@allow_subscription_copy = 'false',
+@dynamic_filters = 'true',
+@conflict_retention = 14,
+@keep_partition_changes = 'false',
+@allow_synctoalternate = 'false',
+@validate_subscriber_info = 'SUSER_SNAME()',
+@max_concurrent_merge = 0,
+@max_concurrent_dynamic_snapshots = 0,
+@use_partition_groups = 'true',
+@replicate_ddl = 1,
+@allow_subscriber_initiated_snapshot = 'true',
+@allow_web_synchronization = 'false',
+@allow_partition_realignment = 'true',
+@retention_period_unit = 'days',
+@conflict_logging = 'both',
+@automatic_reinitialization_policy = 0
+GO
+
+/* Now add the publication snapshot */
+
+exec sp_addpublication_snapshot @publication
+ = 'pub_stdpub_mysalesmerge2', @frequency_type = 4,
+@frequency_interval = 14,
+@frequency_relative_interval = 1,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 1,
+@frequency_subday_interval = 5,
+@active_start_time_of_day = 500,
+@active_end_time_of_day = 235959,
+@active_start_date = 0,
+@active_end_date = 0,
+@job_login = null,
+@job_password = null,
+@publisher_security_mode = 0,
+@publisher_login = 'sa',
+@publisher_password = ''
+
+/* Grant access to the publication. */
+
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'sa'
+GO
+exec sp_grant_publication_access
+ @publication = 'pub_stdpub_mysalesmerge2',
+@login = 'NT AUTHORITY\SYSTEM'
+GO
+exec sp_grant_publication_access
+ @publication = 'pub_stdpub_mysalesmerge2',
+@login = 'BUILTIN\Administrators'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'BIOREPL\SQLServerSQLAgentUser$ $BIOREPL'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'BIOREPL \SQLServerMSSQLUser$ BIOREPL'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'BIOREPL\Sujoy Paul'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'distributor_admin'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'LexasSmith'
+GO
+exec sp_grant_publication_access
+@publication = 'pub_stdpub_mysalesmerge2',
+@login = 'BensMarcedez'
+GO
+
+
+Listing 13-6. Adding Standard Articles to the Publication
+/* Execute this on the publication database. */
+use [mysales_merge2]
+go
+
+/* Add the merge article, Customer, to the publication */
+
+exec sp_addmergearticle @publication = 'pub_stdpub_mysalesmerge2',
+@article = 'Customer',
+@source_owner = 'myorder',
+@source_object = 'Customer',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, Stock, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'Stock',
+@source_owner ='myorder',
+@source_object = 'Stock',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, Item, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'Item',
+@source_owner = 'myinventory',
+@source_object = 'Item',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, SalesPerson, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'SalesPerson',
+@source_owner = 'myorder',
+@source_object = 'SalesPerson',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = 'cast([SalesID] as char(10))= SUSER_SNAME()',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, AccountsReceivable, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'AccountsReceivable',
+@source_owner = 'myfinance',
+@source_object = 'AccountsReceivable',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myfinance',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, OrderHeader, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'OrderHeader',
+@source_owner ='myorder',
+@source_object = 'OrderHeader',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+/*@article_resolver = 'Microsoft SQL Server DATETIME (Earlier Wins)
+Conflict Resolver',*/
+@subset_filterclause = '',
+/*@resolver_info = 'Ship_date',*/
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, PriceList, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'PriceList',
+@source_owner = 'myinventory',
+@source_object = 'PriceList',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@article_resolver = 'Microsoft SQL Server Maximum Conflict Resolver',
+@subset_filterclause = '',
+@resolver_info = 'Price',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, StockItem, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'StockItem',
+@source_owner = 'myinventory',
+@source_object = 'StockItem',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, CustSales, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'CustSales',
+@source_owner ='myorder',
+@source_object = 'CustSales',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, OrderDetail, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'OrderDetail',
+@source_owner = 'myorder',
+@source_object = 'OrderDetail',
+@type = 'table',
+@creation_script = '',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition ='false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, usp_GetCustomerInvoicePaymentDue, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article ='usp_GetCustomerInvoicePaymentDue',
+@source_owner = 'myorder',
+@source_object = 'usp_GetCustomerInvoicePaymentDue',
+@type = 'proc schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'usp_GetCustomerInvoicePaymentDue',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, vw_CustomerInvoiceStatus, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'vw_CustomerInvoiceStatus',
+@source_owner = 'myorder',
+@source_object = 'vw_CustomerInvoiceStatus',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'vw_CustomerInvoiceStatus',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, vw_ItemEnquiry, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'vw_ItemEnquiry',
+@source_owner= 'myorder',
+@source_object = 'vw_ItemEnquiry',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'vw_ItemEnquiry',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge2]
+go
+
+/* Add the merge article, vw_OrderStatus, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'vw_OrderStatus',
+@source_owner = 'myorder',
+@source_object = 'vw_OrderStatus',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object ='vw_OrderStatus',
+@force_reinit_subscription = 1
+go
+
+
+Listing 13-7. Adding the Parameterized and Join Filters and Starting the Snapshot Agent
+/*Add the merge article join filters on the publication database*/
+
+use [mysales_merge2]
+go
+
+/*Add the join filter to the article AccountsReceivable */
+
+exec sp_addmergefilter
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'AccountsReceivable',
+@filtername= 'AccountsReceivable_Customer',
+@join_articlename = 'Customer',
+@join_filterclause = '[Customer].[CustID] = [AccountsReceivable].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge2]
+go
+
+/*Add the join filter to the article OrderHeader */
+
+exec sp_addmergefilter
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'OrderHeader',
+@filtername ='OrderHeader_Customer',
+@join_articlename = 'Customer',
+@join_filterclause = '[Customer].[CustID] =[OrderHeader].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge2]
+go
+
+/*Add the join filter to the article Customer */
+
+exec sp_addmergefilter
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'Customer',
+@filtername ='Customer_CustSales',
+@join_articlename = 'CustSales',
+@join_filterclause = '[CustSales].[CustID] =[Customer].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+
+
+use [mysales_merge2]
+go
+
+/*Add the join filter to the article CustSales */
+
+exec sp_addmergefilter
+@publication = 'pub_stdpub_mysalesmerge2',
+@article = 'CustSales',
+@filtername ='CustSales_SalesPerson',
+@join_articlename = 'SalesPerson',
+@join_filterclause = '[SalesPerson].[SalesID] =[CustSales].[SalesID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+/* Start the Snapshot Agent on the Publisher server .*/
+
+exec sp_startpublication_snapshot
+@publication = 'pub_stdpub_mysalesmerge2'
+go
+
+
+NONCONVERGENCE
+
+Create trigger readonly
+On
+Myinventory.Item
+For insert, delete, update
+NOT FOR REPLICATION
+As
+Print 'You cannot insert, delete, update table Item'
+Raiserror('Cannot perform any DML operations', 16,1)
+Rollback
+
+
+Listing 13-8. Using the HOST_NAME() Dynamic Function to Set Up the Publication for Standard Articles
+/* Enable the database for replication on the master database */
+
+use master
+go
+exec sp_replicationdboption @dbname = 'mysales_merge_replpeer',
+@optname = 'merge publish',
+@value = 'true'
+go
+
+/* Now add the merge publication on the mysales_merge_replpeer
+ database on the BIOREPL_PEER instance */
+
+use [mysales_merge_replpeer]
+go
+
+exec sp_addmergepublication
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@sync_mode = 'native',
+@retention = 14,
+@allow_push = 'true',
+@allow_pull = 'true',
+@allow_anonymous = 'true',
+@enabled_for_internet = 'false',
+@snapshot_in_defaultfolder = 'true',
+@dynamic_filters = 'true',
+@conflict_retention = 14,
+@keep_partition_changes = 'false',
+@allow_synctoalternate = 'false',
+@validate_subscriber_info = 'HOST_NAME()',
+@max_concurrent_merge = 1,
+@max_concurrent_dynamic_snapshots = 0,
+@use_partition_groups = 'true',
+@publication_compatibility_level = '100RTM',
+@replicate_ddl = 1,
+@allow_subscriber_initiated_snapshot = 'false',
+@allow_web_synchronization = 'false',
+@allow_partition_realignment = 'true',
+@retention_period_unit = 'days',
+@conflict_logging = 'both',
+@automatic_reinitialization_policy = 0
+go
+
+/* Create the Snapshot Agent */
+
+exec sp_addpublication_snapshot
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@frequency_type = 4,
+@frequency_interval = 14,
+@frequency_relative_interval = 1,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 1,
+@frequency_subday_interval = 5,
+@active_start_time_of_day = 500,
+@active_end_time_of_day = 235959,
+@active_start_date = 0,
+@active_end_date = 0,
+@job_login = null,
+@job_password = null,
+@publisher_security_mode = 1
+
+/*Grant access to the publication */
+
+exec sp_grant_publication_access
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@login = 'sa'
+go
+sp_grant_publication_access
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@login = 'distributor_admin'
+go
+
+/* Now add the merge articles */
+
+use [mysales_merge_replpeer]
+go
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'Customer',
+@source_owner = 'myorder',
+@source_object = 'Customer',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+/*Add the article, Item, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'Item',
+@source_owner = 'myinventory',
+@source_object = 'Item',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, OrderHeader, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'OrderHeader',
+@source_owner = 'myorder',
+@source_object = 'OrderHeader',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, SalesPerson, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'SalesPerson',
+@source_owner = 'myorder',
+@source_object = 'SalesPerson',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = 'convert(char,[SalesID])=HOST_NAME()',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0x10,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, Stock, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'Stock',
+@source_owner = 'myorder',
+@source_object = 'Stock',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, AccountsReceivable, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'AccountsReceivable',
+@source_owner = 'myfinance',
+@source_object = 'AccountsReceivable',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myfinance',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, OrderDetail, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'OrderDetail',
+@source_owner = 'myorder',
+@source_object = 'OrderDetail',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, PriceList, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'PriceList',
+@source_owner = 'myinventory',
+@source_object = 'PriceList',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@article_resolver = 'Microsoft SQL Server Averaging
+Conflict Resolver', @subset_filterclause = '',
+@resolver_info = 'Price',
+@vertical_partition = 'false',
+@verify_resolver_signature = 0,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, AccountInvoice, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'AccountInvoice',
+@source_owner = 'myfinance',
+@source_object = 'AccountInvoice',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myfinance',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, CustSales, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'CustSales',
+@source_owner = 'myorder',
+@source_object = 'CustSales',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myorder',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, StockItem, to the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'StockItem',
+@source_owner = 'myinventory',
+@source_object = 'StockItem',
+@type = 'table',
+@pre_creation_cmd = 'drop',
+@identityrangemanagementoption = 'none',
+@destination_owner = 'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking = 'false',
+@subset_filterclause = '',
+@vertical_partition = 'false',
+@verify_resolver_signature = 1,
+@allow_interactive_resolver = 'false',
+@fast_multicol_updateproc = 'true',
+@check_permissions = 0,
+@subscriber_upload_options = 0,
+@delete_tracking = 'true',
+@compensate_for_errors = 'false',
+@stream_blob_columns = 'false',
+@partition_options = 0
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*If the snapshot was already generated,
+use @force_invalidate_snapshot=1*/
+
+/*Add the article, usp_GetCustomerInvoicePaymentDue, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'usp_GetCustomerInvoicePaymentDue',
+@source_owner = 'myorder',
+@source_object = 'usp_GetCustomerInvoicePaymentDue',
+@type = 'proc schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'usp_GetCustomerInvoicePaymentDue',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, usp_GetItemAbovePremiumPrice, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'usp_GetItemAbovePremiumPrice',
+@source_owner = 'myinventory',
+@source_object = 'usp_GetItemAbovePremiumPrice',
+@type = 'proc schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myinventory',
+@destination_object = 'usp_GetItemAbovePremiumPrice',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+exec sp_addmergearticle
+
+/*Add the article, usp_ InsertCustomerInvoice, to
+the publication */
+
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'usp_InsertCustomerInvoice',
+@source_owner = 'myorder',
+@source_object = 'usp_InsertCustomerInvoice',
+@type = 'proc schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'usp_InsertCustomerInvoice',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, vw_CustomerInvoiceStatus, to
+the publication */
+
+sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'vw_CustomerInvoiceStatus',
+@source_owner = 'myorder',
+@source_object = 'vw_CustomerInvoiceStatus',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'vw_CustomerInvoiceStatus',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, vw_ItemEnquiry, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'vw_ItemEnquiry',
+@source_owner = 'myorder',
+@source_object = 'vw_ItemEnquiry',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'vw_ItemEnquiry',
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/*Add the article, vw_OrderStatus, to
+the publication */
+
+exec sp_addmergearticle
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'vw_OrderStatus',
+@source_owner = 'myorder',
+@source_object = 'vw_OrderStatus',
+@type = 'view schema only',
+@pre_creation_cmd = 'drop',
+@destination_owner = 'myorder',
+@destination_object = 'vw_OrderStatus',
+@force_reinit_subscription = 1
+go
+
+/* Now add the merge article join filters. */
+
+use [mysales_merge_replpeer]
+go
+
+/* Add the join filter to AccountsReceivable */
+
+exec sp_addmergefilter
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'AccountsReceivable',
+@filtername = 'AccountsReceivable_Customer',
+@join_articlename = 'Customer',
+@join_filterclause = '[Customer].[CustID] = [AccountsReceivable].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/* Add the join filter to OrderHeader */
+
+exec sp_addmergefilter
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'OrderHeader',
+@filtername = 'OrderHeader_Customer',
+@join_articlename = 'Customer',
+@join_filterclause = '[Customer].[CustID] = [OrderHeader].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+/* Add the join filter to Customer */
+
+exec sp_addmergefilter
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'Customer',
+@filtername = 'Customer_CustSales',
+@join_articlename = 'CustSales',
+@join_filterclause = '[CustSales].[CustID] = [Customer].[CustID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+
+use [mysales_merge_replpeer]
+go
+
+
+use [mysales_merge_replpeer]
+go
+
+/* Add the join filter to CustSales */
+
+exec sp_addmergefilter
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@article = 'CustSales',
+@filtername = 'CustSales_SalesPerson',
+@join_articlename = 'SalesPerson',
+@join_filterclause = '[SalesPerson].[SalesID] = [CustSales].[SalesID]',
+@join_unique_key = 1,
+@filter_type = 1,
+@force_invalidate_snapshot = 1,
+@force_reinit_subscription = 1
+Go
+/*Generate the publication snapshot */
+
+exec sp_startpublication_snapshot
+@publication = 'pub_mysales_mergereplpeer_hostname'
+go
+
+
+Listing 13-9. Generating a Dynamic Snapshot for Publications with Parameterized Row Filters
+/*Execute this on the publication database. */
+
+use [mysales_merge_replpeer]
+go
+
+/*Create a table variable. */
+
+declare @dynamicsnapshot table
+(id int,
+    job_name sysname,
+    job_id uniqueidentifier,
+    dynamic_filter_login sysname NULL,
+    dynamic_filter_hostname sysname NULL,
+    dynamic_snapshot_location nvarchar(255),
+    frequency_type int,
+    frequency_interval int,
+    frequency_subday_type int,
+    frequency_subday_interval int,
+    frequency_relative_interval int,
+    frequency_recurrence_factor int,
+    active_start_date int,
+    active_end_date int,
+    active_start_time int,
+    active_end_time int
+)
+
+/* Declare variables and assign values to publication and HOSTNAME. */
+
+declare @publication AS sysname;
+declare @jobname AS sysname
+declare @hostname AS sysname
+set @publication = 'pub_mysales_mergereplpeer_hostname';
+set @hostname = 'BIOREPL\BIOREPL_PEER
+';
+
+/*  Add a data partition. */
+
+sp_addmergepartition
+@publication = @publication,
+@host_name = @hostname;
+
+/* Add the filtered data snapshot job. */
+
+sp_adddynamicsnapshot_job
+@publication = @publication,
+@host_name = @hostname;
+
+/* Insert into the table variable the data from the sp_helpdynamicsnapshot_job. */
+
+insert into @dynamicsnapshot exec sp_helpdynamicsnapshot_job
+
+/*Test to see that the values are successfully inserted. */
+
+select * from @dynamicsnapshot
+
+/* Find the name of the job for the dynamic snapshot, and then start the job.*/
+
+select @jobname = (select distinct job_name from
+@dynamicsnapshot where dynamic_filter_hostname = @hostname);
+
+/* Start the job in the msdb database. */
+
+exec msdb..sp_start_job @job_name = @jobname;
+go
+
+
+Listing 13-10. Setting Up a Push Subscription for Merge Publication with Download-Only Articles
+/* Execute this on the publication database. */
+
+Use mysales_merge1
+Go
+
+/* Create a temporary table to hold the values of merge
+publication. */
+
+create table #mergepublication (
+id int,
+name sysname,
+description varchar(255),
+status tinyint,
+retention int,
+syncmode tinyint,
+allowpush int,
+allowpull int,
+allowanon int,
+centralizedconflicts int,
+priority float(8),
+snapshotready tinyint,
+publicationtype int,
+pubid uniqueidentifier,
+snapshotjobid binary(16),
+enabledforinternet int,
+dynamicfilter int,
+hassubscription int,
+snapshotdefaultfolder bit,
+altsnapshotdefaultfolder nvarchar(255),
+presnapshotscript nvarchar(255),
+postsnapshotscript nvarchar(255),
+compresssnapshot bit,
+ftpaddress nvarchar(255),
+ftpport int,
+ftpsubdirectory nvarchar(255),
+ftplogin sysname,
+conflictretention int,
+keeppartitionchanges int,
+allowsubscriptioncopy  int,
+allowsynctoalternate int,
+validatesubscriberinfo nvarchar(500),
+bkwdcomplevel int,
+publishactivedir bit,
+maxconcurrentmerge int,
+maxconcurrentdynamicsnapshots int,
+usepartitiongr int,
+numarticles int,
+replicateddl int,
+pubnumber smallint,
+allowsubintsnapshot bit,
+allowwebsync bit,
+websynchurl nvarchar(500),
+allowpartrealign bit,
+retentionperiodunit tinyint,
+hasdownloadonlyarticles bit,
+decentralizedconflicts int,
+generationlevelthreshold int,
+automaticreinitialpolicy bit)
+
+/* Insert into the temp table the values of the merge publication. */
+
+insert into #mergepublication exec sp_helpmergepublication;
+
+/* Check to see that the insert worked. */
+
+select * from #mergepublication;
+
+/* Declare the variable. */
+
+declare @allowpush int
+
+/*Assign the allowpush variable. */
+set @allowpush=(select max(allowpush) from #mergepublication)
+
+/* If push subscription is not supported then use sp_changemergepublication
+and set the value to true. */
+
+if @allowpush <>1
+begin
+exec sp_changemergepublication
+'pub_downloadonly_mysalesmerge','allow_push','true'
+end
+exec sp_addmergesubscription
+@publication = 'pub_downloadonly_mysalesmerge',
+@subscriber = 'BIOREPL\BIOREPL',
+@subscriber_db = 'mysales_remotedown_merge1',
+@subscription_type = 'Push',
+@sync_type = 'Automatic',
+@subscriber_type = 'Local',
+@subscription_priority = 0,
+@use_interactive_resolver = 'False'
+
+/* Add the merge push subscription agent on the
+publication database. */
+
+exec sp_addmergepushsubscription_agent
+@publication = 'pub_downloadonly_mysalesmerge',
+@subscriber ='BIOREPL\BIOREPL',
+@subscriber_db = 'mysales_remotedown_merge1',
+@job_login = 'BIOREPL\SujoyPaul',
+
+/*Note you can only specify @job_password to null
+if the @job_login is null. If the password is set
+to null, the Merge Agent will be created and will
+run under the SQL Server Agent Service account*/
+
+@job_password = password,
+@subscriber_security_mode = 0,
+@subscriber_login = 'sa',
+@subscriber_password = null,
+@publisher_security_mode = 1,
+@frequency_type = 64,
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+@active_start_date = 0,
+@active_end_date = 0
+
+/* Finally drop the temp table. */
+
+drop table #mergepublication
+go
+
+
+Listing 13-11. Registering the Subscription on the Publication Database
+/* Execute this on the publication database. */
+
+use [mysales_merge2]
+go
+
+sp_addmergesubscription
+@publication = 'pub_stdpub_mysalesmerge2',
+@subscriber ='BIOREPL \BIOREPL_PEER',
+@subscriber_db = 'mysales_remotestd_merge_peer',
+@subscription_type = 'Pull',
+@sync_type = 'Automatic',
+@subscriber_type = 'Global',
+@subscription_priority = 75,
+@use_interactive_resolver = 'False'
+Go
+
+
+Listing 13-12. Creating a Pull Subscription and Adding the Pull Subscription Agent
+/* Execute this on the subscription database. */
+
+use [mysales_remotestd_merge_peer]
+go
+
+/* Create the pull subscription. */
+
+sp_addmergepullsubscription
+@publisher = 'BIOREPL\BIOREPL',
+@publication = 'pub_stdpub_mysalesmerge2',
+@publisher_db = 'mysales_merge2',
+@subscriber_type = 'Global',
+@subscription_priority = 75,
+@sync_type = 'Automatic'
+Go
+
+/* Add the pull subscription agent. */
+
+sp_addmergepullsubscription_agent
+@publisher = 'BIOREPL\BIOREPL',
+@publisher_db = 'mysales_merge2',
+@publication = 'pub_stdpub_mysalesmerge2',
+@distributor = 'BIOREPL\BIOREPL',
+@distributor_security_mode = 1,
+@distributor_login = '',
+@distributor_password = '',
+@enabled_for_syncmgr = 'False',
+@job_login = null,
+@job_password = null,
+@publisher_security_mode = 1,
+@publisher_login = '',
+@publisher_password = '',
+@use_interactive_resolver = 'False',
+@use_web_sync = 0
+Go
+
+
+Listing 13-13. Setting Up a Pull Subscription for Client-Type Subscription
+/* Execute this on the publication database. */
+
+use [mysales_merge_replpeer]
+go
+
+/* Enable the pull subscription on the publication database.*/
+
+sp_addmergesubscription
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@subscriber = 'BIOREPL\BIOREPL_PEER',
+@subscriber_db = 'mysales_mergehost_sub',
+@subscription_type = 'pull',
+@subscriber_type = 'local',
+@subscription_priority = 0,
+@sync_type = 'Automatic'
+go
+
+/* Add the pull subscription on the subscription database. */
+
+use [mysales_mergehost_sub]
+
+sp_addmergepullsubscription
+@publisher = 'BIOREPL\BIOREPL_PEER',
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@publisher_db = 'mysales_merge_replpeer',
+@subscriber_type = 'Local',
+@subscription_priority = 0,
+@sync_type = 'Automatic'
+
+/* Add the pull subscription agent on the Subscriber server. */
+
+sp_addmergepullsubscription_agent
+@publisher = 'BIOREPL\BIOREPL_PEER',
+@publisher_db = 'mysales_merge_replpeer',
+@publication = 'pub_mysales_mergereplpeer_hostname',
+@distributor = 'BIOREPL\BIOREPL_PEER',
+@distributor_security_mode = 1,
+@distributor_login = '',
+@distributor_password = null,
+@enabled_for_syncmgr = 'False',
+@job_login = null,
+@job_password = null,
+@publisher_security_mode = 1,
+@publisher_login = null,
+@publisher_password = null,
+@use_interactive_resolver = 'False',
+@dynamic_snapshot_location = null,
+@use_web_sync = 0,
+@hostname = ’I'BOREPL\BIOREPL_PEER'
+Go
+
+
+Listing 13-14. Assigning the identity Property to the WhseID Column
+Use mysales_pub_identity
+Go
+create table [myinventory].[Warehouse]
+(
+    WhseID             int     identity(1,1) not for replication not null,
+    WhseName           varchar(20)           null    ,
+    WhseAddress1       varchar(30)           null    ,
+    Whse_City          varchar(20)           null    ,
+    Whse_Postal_Code   varchar(7)            null    ,
+    constraint PK_WAREHOUSE primary key (WhseID)
+)
+
+Listing 13-15. Setting Up Merge Publication with Identity Range Management
+/* Enable the replication database */
+
+use master
+exec sp_replicationdboption @dbname =  'mysales_pub_identity',
+@optname =  'merge publish',
+@value =  'true'
+GO
+
+/* Adding the merge publication */
+
+use [mysales_pub_identity]
+exec sp_addmergepublication @publication =  'pub_mysales_identity',
+@sync_mode =  'native',
+@retention = 14,
+
+@allow_push =  'true',
+@allow_pull =  'true',
+@allow_anonymous =  'true',
+
+@enabled_for_internet =  'false',
+@snapshot_in_defaultfolder =  'true',
+@compress_snapshot =  'false',
+
+@allow_subscription_copy =  'false',
+@add_to_active_directory =  'false',
+@dynamic_filters =  'false',
+
+@conflict_retention = 14,
+@keep_partition_changes =  'false',
+@allow_synctoalternate =  'false',
+
+@max_concurrent_merge = 0,
+@max_concurrent_dynamic_snapshots = 0,
+@use_partition_groups =  'false',
+
+@publication_compatibility_level =  '100RTM',
+@replicate_ddl = 1,
+@allow_subscriber_initiated_snapshot =  'false',
+
+@allow_web_synchronization =  'false',
+@allow_partition_realignment = 'true',
+@retention_period_unit =  'days',
+
+@conflict_logging =  'both',
+@automatic_reinitialization_policy = 0
+GO
+
+/* Add the publication snapshot */
+exec sp_addpublication_snapshot
+@publication =  'pub_mysales_identity',
+@frequency_type = 4,
+@frequency_interval = 14,
+@frequency_relative_interval = 1,
+@frequency_recurrence_factor = 0,
+
+@frequency_subday = 1,
+@frequency_subday_interval = 5,
+@active_start_time_of_day = 500,
+
+@active_end_time_of_day = 235959,
+@active_start_date = 0,
+@active_end_date = 0,
+
+@job_login = null,
+@job_password = null,
+@publisher_security_mode = 1
+
+/* Grant publication access */
+exec sp_grant_publication_access
+@publication =  'pub_mysales_identity',
+@login =  'sa'
+GO
+
+GO
+exec sp_grant_publication_access
+@publication =  'pub_mysales_identity',
+@login =  'distributor_admin'
+GO
+
+/* Add the merge articles */
+
+use [mysales_pub_identity]
+go
+
+exec sp_addmergearticle
+@publication =  'pub_mysales_identity',
+@article =  'Warehouse',
+@source_owner =  'myinventory',
+
+@source_object =  'Warehouse',
+ @type =  'table',
+@creation_script =  '',
+
+@pre_creation_cmd =  'drop',
+@schema_option = 0x000000000C034FD1,
+
+@identityrangemanagementoption =  'auto',
+@pub_identity_range = 10000,
+@identity_range = 1000,
+@threshold = 80,
+
+@destination_owner =  'myinventory',
+@force_reinit_subscription = 1,
+@column_tracking =  'false',
+
+@subset_filterclause =  '',
+@vertical_partition =  'false',
+@verify_resolver_signature = 1,
+
+@allow_interactive_resolver =  'false',
+@fast_multicol_updateproc =  'true',
+@check_permissions = 0,
+
+@subscriber_upload_options = 0,
+@delete_tracking =  'true',
+@compensate_for_errors =  'false',
+
+@stream_blob_columns ='false',
+@partition_options = 0
+GO
+
+use [mysales_pub_identity]
+exec sp_changemergepublication  'pub_mysales_identity',  'status',  'active'
+GO
+
+Listing 13-16. Setting Up a Push Subscription
+use [mysales_pub_identity]
+exec sp_addmergesubscription @publication =  'pub_mysales_identity',
+@subscriber =  'BIOREPL\BIOREPL',
+@subscriber_db =  'mysales_sub_identity',
+
+@subscription_type =  'Push',
+@sync_type =  'Automatic',
+@subscriber_type = 'Global',
+
+@subscription_priority = 75,
+@description = null,
+@use_interactive_resolver =  'False'
+
+exec sp_addmergepushsubscription_agent
+@publication =  'pub_mysales_identity',
+@subscriber =  'BIOREPL\BIOREPL',
+
+@subscriber_db =  'mysales_sub_identity',
+@job_login = null,
+@job_password = null,
+
+@subscriber_security_mode = 1,
+@publisher_security_mode = 1,
+@frequency_type = 64,
+
+@frequency_interval = 0,
+@frequency_relative_interval = 0,
+@frequency_recurrence_factor = 0,
+@frequency_subday = 0,
+
+@frequency_subday_interval = 0,
+@active_start_time_of_day = 0,
+@active_end_time_of_day = 235959,
+
+@active_start_date = 20060822,
+@active_end_date = 99991231,
+@enabled_for_syncmgr = 'False'
+GO
+
+Listing 13-17. Enabling Database for filestream Access
+EXEC sp_configure filestream_access_level, 2
+RECONFIGURE
+
+
+Listing 13-18. Creating a Database That Is filestream Enabled
+CREATE DATABASE [mysales_mergefs]
+ON  PRIMARY
+(NAME = 'mysales_mergefs_data',
+ FILENAME = 'C:\publishing\mysales_mergefs.mdf' , SIZE = 9216KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB ),
+ FILEGROUP mysales_mergefsgr CONTAINS FILESTREAM
+ (NAME=mysales_mergefsgr_data,
+ FILENAME='C:\publishing\mysales_mergefs')
+ LOG ON
+( NAME = 'mysales_mergefs_log',
+FILENAME = 'C:\publishing\mysales_mergefslog.ldf' , SIZE = 10176KB , MAXSIZE = 2048GB , FILEGROWTH = 10%)
+GO
+
+
+Listing 13-19. ItemCatalog Table with the filestream Column
+Use mysales_mergefs
+go
+
+create table myinventory.ItemCatalog
+(
+ItemCatalogId uniqueidentifier rowguidcol not null unique,
+Unit char(4),
+ItemDocs	varbinary(max) filestream
+)go
+
+
+Listing 13-20. Creating the Publication Containing the filestream-Enabled Column
+use [mysales_mergefs]
+go
+exec sp_replicationdboption @dbname = 'mysales_mergefs ', @optname = 'merge publish', @value = 'true'
+GO
+-- Adding the merge publication
+use [mysales_mergefs]
+go
+
+exec sp_addmergepublication @publication = 'pub_mysales_mergefs', @description = 'Merge publication of database ''mysales_mergefs'' from Publisher ''BIOREPL\BIOREPL_PEER''.', @sync_mode = 'native', @retention = 14, @allow_push = 'true', @allow_pull = 'true', @allow_anonymous = 'true', @enabled_for_internet = 'false', @snapshot_in_defaultfolder = 'true', @compress_snapshot = 'false', @ftp_port = 21, @ftp_subdirectory= 'ftp', @ftp_login = 'anonymous', @allow_subscription_copy = 'false', @add_to_active_directory = 'false', @dynamic_filters = 'false', @conflict_retention = 14, @keep_partition_changes = 'false', @allow_synctoalternate = 'false', @max_concurrent_merge = 0, @max_concurrent_dynamic_snapshots = 0, @use_partition_groups = null, @publication_compatibility_level = '100RTM', @replicate_ddl = 1,
+@allow_subscriber_initiated_snapshot = 'false', @allow_web_synchronization = 'true', @allow_partition_realignment = 'true',
+@retention_period_unit = 'days', @conflict_logging = 'both', @automatic_reinitialization_policy = 0
+GO
+
+exec sp_addpublication_snapshot @publication = 'pub_mysales_mergefs', @frequency_type = 1, @frequency_interval = 0, @frequency_relative_interval = 0, @frequency_recurrence_factor = 0, @frequency_subday = 0, @frequency_subday_interval = 0, @active_start_time_of_day = 500, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @job_login = null, @job_password = null, @publisher_security_mode = 1
+
+use [mysales_mergefs]
+go
+
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'Item', @source_owner = 'myinventory', @source_object = 'Item', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1,@identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'ItemCatalog', @source_owner = 'myinventory', @source_object =
+'ItemCatalog', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1, @identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'Pricelist', @source_owner = 'myinventory', @source_object = 'Pricelist', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1,@identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'PurchaseOrderDetail', @source_owner = 'myinventory', @source_object = 'PurchaseOrderDetail', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1, @identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'PurchaseOrderHeader', @source_owner = 'myinventory', @source_object = 'PurchaseOrderHeader', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1, @identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'Stock', @source_owner = 'myorder', @source_object = 'Stock', @type =
+'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1,
+@identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'StockItem', @source_owner = 'myinventory', @source_object = 'StockItem', @type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1,
+@identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null,
+@vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+use [mysales_mergefs]
+go
+exec sp_addmergearticle @publication = 'pub_mysales_mergefs', @article = 'Vendor', @source_owner = 'myinventory', @source_object = 'Vendor',@type = 'table', @description = null, @creation_script = null, @pre_creation_cmd = 'drop', @schema_option = 0x000000B208034FF1,@identityrangemanagementoption = 'manual', @force_reinit_subscription = 1, @column_tracking = 'false', @subset_filterclause = null, @vertical_partition = 'false', @verify_resolver_signature = 1, @allow_interactive_resolver = 'false', @fast_multicol_updateproc = 'true', @check_permissions = 0, @subscriber_upload_options = 0, @delete_tracking = 'true', @compensate_for_errors = 'false', @stream_blob_columns = 'false', @partition_options = 0
+GO
+
+Listing 13-21. Configuring the Push Subscription
+use [mysales_mergefs]
+go
+exec sp_addmergesubscription @publication = 'pub_mysales_mergefs', @subscriber = 'BIOREPL\BIOREPL_PEER', @subscriber_db = 'mysales_mergefs_sub', @subscription_type = 'Push', @sync_type = 'Automatic', @subscriber_type = 'Global', @subscription_priority = 75, @description = null, @use_interactive_resolver = 'False'
+exec sp_addmergepushsubscription_agent @publication = 'pub_mysales_mergefs', @subscriber = 'BIOREPL\BIOREPL_PEER', @subscriber_db = 'mysales_mergefs_sub', @job_login = null, @job_password = null, @subscriber_security_mode = 1, @publisher_security_mode = 1, @frequency_type = 64, @frequency_interval = 0, @frequency_relative_interval = 0, @frequency_recurrence_factor = 0, @frequency_subday = 0, @frequency_subday_interval = 0, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 20081122, @active_end_date = 99991231, @enabled_for_syncmgr = 'False'
+go
+
+
+Listing 13-22. Inserting Data in the ItemCatalog Table in the Publication Database
+insert into myinventory.ItemCatalog values
+(newid(),'EA',CAST('Pictures of Plates...' as varbinary(max))),
+(newid(),'BOX',CAST('Pictures of different Boxes...' as varbinary(max))),
+(newid(),'ERP',CAST('Pictures of Spoons ...' as varbinary(max))),
+(newid(),'LTS',CAST('Pictures of Lights...' as varbinary(max))),
+(newid(),'CHA',CAST('Pictures of Chandeliers...' as varbinary(max)))
+go 20

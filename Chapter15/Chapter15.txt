@@ -1,0 +1,443 @@
+Chap15
+
+Listing 15-1. Generic Backup Script for Use with Other Databases Involved in Snapshot Replication
+/* Execute this using the sqlcmd utility */
+
+/* Declare the sqlcmd variables */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/*Back up the database */
+
+BACKUP DATABASE $(db) TO
+DISK = '$(path)\$(db).bak'
+WITH NOFORMAT, INIT,
+NAME = '$(db)Database Backup',
+SKIP,
+NOREWIND,
+NOUNLOAD,
+STATS = 10,
+CHECKSUM
+Go
+
+declare @backupSetId as int
+select @backupSetId = position from msdb..backupset
+where
+database_name='$(db)' and backup_set_id=
+(select max(backup_set_id) from msdb..backupset where database_name='$(db)' )
+
+/* If backup does not exist, raise the error */
+
+if @backupSetId is null
+begin
+raiserror('Verify failed. Backup information for database ''$(db)''
+ not found.', 16, 1)
+end
+
+RESTORE VERIFYONLY
+FROM  DISK = '$(path)\$(db).bak'
+WITH  FILE = @backupSetId,
+NOUNLOAD,
+NOREWIND
+go
+
+
+
+Listing 15-2. Checking to Find Out Which Databases Have the Checksum Option Enabled
+/*Execute this on the msdb database */
+
+Use msdb
+Go
+
+select backup_size,
+database_name,
+first_lsn,last_lsn,
+checkpoint_lsn,
+name,
+user_name,
+server_name,
+is_damaged,
+has_backup_checksums
+from backupset
+order by has_backup_checksums desc
+go
+
+
+
+Listing 15-3. Finding Tasks Waiting to Be Run for the CPU_id Associated with the Scheduler
+/* Execute this on the database that is being used for backup
+with checksum enabled */
+
+Use mysales_new
+go
+
+select
+scheduler_id,
+current_tasks_count,
+runnable_tasks_count,
+is_online,
+cpu_id,
+current_workers_count,
+active_workers_count,
+work_queue_count,
+pending_disk_io_count
+from
+sys.dm_os_schedulers
+order by scheduler_id
+go
+
+
+
+Listing 15-4. Determining the Average CPU Time for the Batch of SQL Statements
+/* Execute this on the publication database*/
+Use mysales_new
+go
+
+select  top 20
+(total_worker_time/execution_count) AS AvgCPUTime,
+total_worker_time,
+execution_count,
+statement_start_offset,
+statement_end_offset,
+(select text from sys.dm_exec_sql_text(sql_handle)) AS querytext
+from
+sys.dm_exec_query_stats
+order by AvgCPUTime desc
+go
+
+
+
+Listing 15-5. Generic Restoration Script for Use with Other Databases Involved in Snapshot Replication
+/* Execute this using the sqlcmd utility */
+
+/* Declare the sqlcmdvariables */
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/*Restore the database */	
+
+RESTORE DATABASE $(db1) FROM
+DISK = '$(path)\$(db).bak'
+WITH  FILE = 1,
+MOVE '$(db)' TO
+'$(path1)\$(db1).mdf',
+MOVE '$(log)' TO '$(path1)\$(log1).ldf',
+KEEP_REPLICATION,
+NOUNLOAD,
+STATS = 10
+GO
+
+
+
+Listing 15-6. Backup Script Running on a Windows-Authenticated SQL Server Instance
+/*Execute using sqlcmd utility on the BIOREPL\BIOREPL_PEER instance*/
+
+/*Declare the variables to be used for Windows Authentication; the username and
+password are not specified */
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_PEER"
+:connect $(server) -l $(logintimeout)
+
+/*Back up the database */
+
+BACKUP DATABASE $(db) TO  DISK = N'$(path)\$(db).bak'
+WITH NOFORMAT, INIT,
+NAME = N'$(db)Database Backup',
+SKIP,
+NOREWIND,
+NOUNLOAD,
+STATS = 10,
+CHECKSUM
+GO
+
+/* Locate the appropriate backup set and files */
+
+declare @backupSetId as int
+select @backupSetId = position from msdb..backupset where
+ database_name='$(db)' and backup_set_id=
+(select max(backup_set_id) from msdb..backupset where database_name='$(db)' )
+
+/*Verify that the backup is available */
+
+if @backupSetId is null
+begin
+raiserror
+(N'Verify failed. Backup information for database ''$(db)'' not found.', 16, 1)
+end
+
+/*Restore the database */
+
+RESTORE VERIFYONLY FROM  DISK = N'$(path)\$(db).bak'
+WITH  FILE = @backupSetId,  NOUNLOAD,  NOREWIND
+GO
+
+
+
+Listing 15-7. Checking for the sync with backup Option
+/* Can be executed either on the publication or the distribution database*/
+/*In this case, check it on the publication database */
+
+Use mysales_copy_restore
+Go
+
+SELECT DATABASEPROPERTYEX
+('mysales_copy_restore','IsSyncWithBackup')
+Go
+
+
+
+Listing 15-8. Finding the Number of Undelivered Commands
+/* Execute this on the distribution database */
+
+Use distribution
+Go
+
+select a.agent_id,
+a.UndelivCmdsInDistDB,
+a.DelivCmdsInDistDB,
+b.name,
+b.publisher_db,
+b.publication
+from MSdistribution_status a,MSdistribution_agents b
+where a.agent_id=b.id and
+b.publication='pub_mysales_copy_myinventory' and
+b.name=
+'BIOREPL\BIORE-mysales_copy-pub_mysales_copy_myin-BIOREPL\BIORE-17'
+go
+
+
+
+Listing 15-9. Checking for Nonconvergence Between the Publication and Subscription Databases
+/* Run from the command prompt */
+
+tablediff -sourceserver BIOREPL\BIOREPL_PEER -sourcedatabase
+ mysales_copy -sourcetable Item -sourceschema myinventory -
+destinationserver BIOREPL\BIOREPL_PEER -destinationdatabase
+ mysalescopy_stpub_remotepush -destinationtable Item -
+destinationschema myinventory
+-f C:\files\tabledifferencepeer.sql -o C:\files\tablediffoutput.txt
+
+
+
+Listing 15-10. Enabling the sync with backup Option
+/* Use the sqlcmd utility to execute the script */
+
+/*Declare the variables */
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+/*Enable the sync with backup option */
+
+Use $(db)
+Go
+if DATABASEPROPERTYEX
+('$(db)','$(property)')=0
+exec sp_replicationdboption '$(db)','sync with backup','true'
+else
+print "'$(db)' is already enabled for sync with backup"
+Go
+
+
+
+Listing 15-11. Backup Script for a Publication Database That Has the sync with backup Option Enabled
+/*Execute this with the sqlcmd utility */
+
+/*Declare the variables */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar pwd "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(pwd)
+
+Use $(db)
+Go
+
+/*Check the property of the database and then run a DBCC Checkdb */
+
+IF DATABASEPROPERTYEX
+('$(db)','$(property)')='FULL'
+and
+DATABASEPROPERTYEX
+('$(db)','$(property1)')='Online'
+begin
+dbcc checkdb('$(db)') with physical_only
+end
+go
+
+/*Back up the database */
+
+BACKUP DATABASE $(db)
+TO  DISK = N'$(path)\$(db).bak' WITH NOFORMAT, INIT,
+NAME =
+N'$(db)Database Backup',
+SKIP,
+NOREWIND,
+NOUNLOAD,
+STATS = 10,
+CHECKSUM
+GO
+
+declare @backupSetId as int
+select @backupSetId = position from
+msdb..backupset where database_name='$(db)' and
+backup_set_id=(select max(backup_set_id) from msdb..backupset
+where database_name='$(db)' )
+
+/*Verify the backup information for the database */
+
+if @backupSetId is null
+begin
+raiserror(N'Verify failed. Backup information for database ''$(db)''
+not found.', 16, 1)
+end
+
+/*Restore the database */
+
+RESTORE VERIFYONLY FROM
+DISK = N'$(path)\$(db).bak'
+WITH  FILE = @backupSetId,
+NOUNLOAD,
+NOREWIND
+GO
+
+
+
+Listing 15-12. Deleting Rows from MSreplication_queue
+/*Execute this on the subscription database that subscribes to
+ queued subscriptions*/
+
+use mysales_remote_queueupd
+go
+if ((select count(*) from MSreplication_queue) >0)
+delete from MSreplication_queue
+go
+
+
+
+Listing 15-13. Finding Out How Many Articles Are Present in the Publication
+/*Execute this on the publication database */
+
+/*Declare the variables */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL_TEST"
+:setvar user "sa"
+:setvar password "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(password)
+
+use $(db)
+go
+
+select a.artid,
+a.dest_table,
+a.name as sourcetable,
+a.dest_owner as destinationowner,
+b.name as publicationname,
+c.dest_db as subscriptiondatabase
+from sysarticles a, syspublications b,
+syssubscriptions c
+where a.pubid=b.pubid and a.artid=c.artid
+and c.dest_db='$(subname)'
+and b.name='$(pubname)'
+go
+
+
+
+Listing 15-14. Dropping the Metadata from the Distribution Database
+/*Execute this on the distribution database on the node that failed */
+
+Use distribution
+Go
+
+/*Specify the name of the publication database and the name of the publication */
+
+sp_removedistpublisherdbreplication 'pub_purchaseorderrepl_peer',
+'purchaseorder_repl'
+Go
+
+
+Listing 15-15. Dropping a Subscription from the Publication for Peer-to-Peer Replication
+/*Execute this on the distribution database on the
+publishing server that is working */
+
+/*Declare the variables */
+
+:setvar logintimeout 120
+:setvar server "BIOREPL\BIOREPL"
+:setvar user "sa"
+:setvar password "sujoy"
+:connect $(server) -l $(logintimeout) -U $(user) -P $(password)
+:setvar subtype 0
+
+/*For pull subscriptions, set the subtype variable to 1.*/
+
+:setvar statusnum 2
+
+use $(db)
+go
+
+/*Declare a table variable */
+
+declare @subscription_push table
+(publisher_id smallint,
+publisher_db sysname,
+subscriber_db sysname,
+subscription_type int,
+sync_type tinyint,
+status tinyint);
+
+/* Insert data into the table variable from the MSsubscriptions table in
+the distribution database*/
+
+insert into @subscription_push
+select
+publisher_id,
+publisher_db,
+subscriber_db,
+subscription_type,
+sync_type,
+status from $(db)..MSsubscriptions
+where subscription_type=$(subtype) and status=$(statusnum)
+
+/* Check the data of the @subscription_push table variable */
+
+select * from @subscription_push
+
+/* Declare table variable that will store the Publisher and the Subscriber
+information from the MSSubscriber_info table */
+
+declare @subscriberinfo table
+(publisher sysname,
+subscriber sysname);
+
+/* Insert the data into the @subscriberinfo table variable */
+
+insert into @subscriberinfo
+select publisher,subscriber from $(db)..MSsubscriber_info
+
+/* Check the data for the @subscriberinfo table variable */
+select * from @subscriberinfo
+
+/* Finally on the Publisher server on the publication
+database, remove the subscription for the Publisher*/
+
+use $(pubdb)
+go
+
+exec sp_dropsubscription '$(pubname)','$(article)','$(subserver)'
+go
+
+
+
+

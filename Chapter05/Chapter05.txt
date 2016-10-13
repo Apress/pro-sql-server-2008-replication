@@ -1,0 +1,60 @@
+Listing 5-1. Dropping a Pull Subscription
+/* Execute this on the Distributor server on the distribution database.
+The Distributor server is on the same machine as the Publisher server */
+
+use distribution
+go
+
+/*Declare a table variable */
+
+declare @subscription_pull table
+(publisher_id smallint,
+publisher_db sysname,
+subscriber_db sysname,
+subscription_type int,
+sync_type tinyint,
+status tinyint);
+
+/* Insert data into the table variable from the MSsubscriptions table in the
+distribution database */
+
+insert into @subscription_pull select
+publisher_id,
+publisher_db,
+subscriber_db,
+subscription_type,
+sync_type,
+status from distribution..MSsubscriptions
+where subscription_type=1 and status =2
+
+/* Check the data of the @subscription_pull table variable */
+
+select * from @subscription_pull
+
+/* Declare table variable that will store the Publisher, the publication database,the type of publication, and the name of the publication
+using sp_helpsubscription_properties */
+
+declare @subscriberinfo table
+(publisher sysname,
+publisher_db sysname,
+publication_type int,
+publication sysname);
+
+/* Insert the data into the @subscriberinfo table variable */
+
+insert into @subscriberinfo
+exec sp_helpsubscription_properties
+
+/* Check the data for the @subscriberinfo table variable */
+select * from @subscriberinfo
+
+/* Execute on the Subscriber on the subscription db – use the name of the Publisher,
+the publication database, and the name of the publication*/
+
+exec sp_droppullsubscription 'BIO-REPL','mysales_new','pub_mysalesnew'
+
+/* Finally, on the Publisher server on the publication database, remove the
+subscription for the Publisher*/
+
+exec sp_dropsubscription 'pub_mysalesnew','all', 'BIO-REPL'
+go

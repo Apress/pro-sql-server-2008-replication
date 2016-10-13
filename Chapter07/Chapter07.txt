@@ -1,0 +1,274 @@
+Chap 07
+
+Listing 7-1. Executing sp_help_publication_access on a Publication
+/* Execute the stored procedure on the publication database
+ that contains the publication */
+
+Use mysales_new
+Go
+
+sp_help_publication_access 'pub_mysalesnew'
+
+
+
+Listing 7-2. Removing a Login Name from the PAL
+/* Execute this on the publication database on the Publisher server */
+
+sp_revoke_publication_access @publication='pub_mysalesnew',
+@login=[BIOREPL\Sujoy Paul]
+
+
+Listing 7-3. Finding Out Whether the Database Is Being Published or Not
+/* Execute this on the publication database on the Publisher server */
+
+Use mysales_new
+Go
+
+Exec sp_dboption 'mysales_new'
+
+
+
+Listing 7-4. Viewing Category Column in Bits on Replication
+/* Execute on any database */
+Use mysales_new
+Go
+
+select name,dbid, category,filename from sys.sysdatabases
+
+
+
+Listing 7-5. Finding the Names of the Publications That Have Been Added in the syspublications System Table
+/* Execute this on the publication database on the Publisher */
+
+select name, repl_freq, status,
+sync_method,
+independent_agent,
+immediate_sync,
+allow_push,
+allow_pull,
+allow_anonymous,
+retention,
+snapshot_in_defaultfolder,
+alt_snapshot_folder,
+compress_snapshot,
+replicate_ddl
+from syspublications
+
+
+
+
+Listing 7-6. Finding the Articles Added in the sysarticles System Table When They Were Added to the Publication
+/* Execute this on the publication database */
+
+select creation_script,
+dest_table,
+del_cmd,
+ins_cmd,
+upd_cmd,
+name,
+objid,
+pubid,
+type,
+dest_owner
+from sysarticles
+
+
+
+
+Listing 7-7. Getting Information About the Publications
+/* Execute this on the distribution database */
+select
+publication_type,
+publisher_db,
+publication,
+thirdparty_flag,
+independent_agent,
+immediate_sync,
+allow_push,
+allow_pull,
+allow_anonymous,
+retention,
+sync_method,
+vendor_name
+from MSpublications
+order by
+publication_type
+
+
+
+
+Listing 7-8. Getting Information on the Articles in a Publication
+/* Execute this on distribution database */
+
+select
+publisher_db ,
+publication_id ,
+article ,
+destination_object ,
+source_owner ,
+source_object
+from MSarticles
+where source_owner like 'myinventory'
+
+
+
+Listing 7-9. Getting the Data Stored by the Snapshot Agent
+/* Execute this on the distribution database */
+use distribution
+go
+
+select
+id,
+name,
+publisher_db,
+publication,
+publication_type,
+job_id,
+publisher_security_mode,
+publisher_login,
+job_step_uid
+from MSsnapshot_agents
+
+
+
+
+Listing 7-10. Getting the History of the Snapshot
+/* Execute this on the distribution database */
+use distribution
+go
+
+select
+agent_id,
+runstatus,
+start_time,
+time,
+duration,
+comments,
+delivered_transactions,
+delivered_commands,
+delivery_rate,
+error_id
+from MSsnapshot_history where delivered_commands <>0
+
+
+
+
+Listing 7-11. Getting the History Associated with the Distribution Agent
+/* Execute this on the distribution database */
+use distribution
+go
+
+select
+agent_id,
+runstatus,
+start_time,
+time,
+duration,
+comments,
+delivered_transactions,
+delivery_rate,
+error_id
+from MSdistribution_history where
+delivered_commands <>0 and runstatus<>3
+
+
+
+
+
+Listing 7-12. Retrieving Information About the Subscriptions
+/* Execute this on the distribution database */
+use distribution
+go
+
+select
+publisher_db,
+publication_id,
+article_id,
+subscription_type,
+subscriber_db,
+status,
+independent_agent
+from MSsubscriptions where subscriber_db like 'sub%'
+
+
+
+
+Listing 7-13. Determining the Publisher and Subscriber Servers for Push Subscriptions
+/* Execute this on the distribution database */
+use distribution
+go
+
+select
+publisher,
+subscriber,
+type,
+security_mode
+from MSsubscriber_info
+
+
+
+Listing 7-14. Viewing Agent Profile Parameters
+/* Execute this on the msdb database */
+use msdb
+go
+
+select agent_type,
+parameter_name,
+default_value,
+min_value,
+max_value
+from MSagentparameterlist
+where agent_type=1
+
+
+
+
+Listing 7-15. Adding a New Parameter to the Snapshot Agent Profile
+/* Execute this on the msdb database */
+use msdb
+go
+/*1.  List all the profiles for the Snapshot Agent */
+
+exec sp_help_agent_profile @agent_type=1
+
+/* 2. Select the profile_id from step 1. Find out the parameters
+and the corresponding values that are being used */
+/* profile_id=17 has a profile_name of Snapshot Agent profile-maxbcpthreads */
+
+exec sp_help_agent_parameter @profile_id=17
+
+/*3. Find out the available parameters and the corresponding
+default, the minimum and the maximum values */
+select agent_type,
+parameter_name,
+default_value,
+min_value,
+max_value
+from MSagentparameterlist
+where agent_type=1
+
+/*4. Now add the parameter MaxNetworkOptimization and set it to a value of 1*/
+
+exec sp_add_agent_parameter @profile_id=17,
+@parameter_name='MaxNetworkOptimization',
+@parameter_value='1'
+
+
+
+Listing 7-16. Getting Information from the MSreplication_subscription Table
+/* Execute this on a subscription database that is used for pull subscriptions */
+
+Use subpull_mysales_new
+Go
+
+select publisher,
+publisher_db,
+publication,
+independent_agent,
+subscription_type,
+distribution_agent,
+time
+from MSreplication_subscriptions
+
+
+

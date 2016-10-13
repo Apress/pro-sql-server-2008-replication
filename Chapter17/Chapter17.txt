@@ -1,0 +1,187 @@
+Chap17
+
+
+Listing 17-1. Insert Statements for the Publication Database
+Use mysales_new
+declare @counter INT  
+set @counter = 1005  
+while @counter < 15005
+begin
+       insert into [myinventory].[Item]
+           ([ItemID],[Description],[Vendor],[Category]
+           ,[Color],[Unit])
+     values
+           (@counter,'Chair',30000,'Furniture','Mahagony','EA') 
+       
+  set @counter = @counter + 1 
+  end
+
+
+
+Listing 17-2. Listing Locks Held by the Different Databases
+/*Execute this on the publication database */
+
+use mysales_snapshot_pub
+go
+
+SELECT a.resource_type,
+a.resource_associated_entity_id,
+a.request_status,
+a.request_mode,
+a.request_session_id as spid,
+a.request_owner_type as [OwnerType],
+a.resource_description,
+b.dbid,
+b.name
+FROM sys.dm_tran_locks a,
+sys.sysdatabases b
+WHERE a.resource_database_id >=1
+Go
+
+
+
+Listing 17-3. Relating Event Classes to Event Categories 
+/*Execute this on the snapshotreplication_perftrace database */
+use snapshotreplication_perftrace
+go
+
+select a.name as [EventClassName],
+a.trace_event_id as [EventTrace],
+b.category_id,
+b.name as [Category],
+b.type,
+c.subclass_name
+from sys.trace_events a,
+sys.trace_categories b,
+sys.trace_subclass_values c
+where b.category_id=a.category_id and
+a.trace_event_id=c.trace_event_id and
+b.name in ('TSQL','locks','stored procedures')
+go
+
+
+
+Listing 17-4. Finding CPU-Intensive Stored Procedures and Their Duration of Execution
+/*Execute this on the trace database */
+use snapshotreplication_perftrace
+go
+select eventclass,
+textdata,
+applicationname,
+spid,
+duration,
+cpu
+from snapshotreplication_perftrace
+/* eventclass=35 corresponds to SP:Completed */
+where eventclass=35
+go
+
+
+
+Listing 17-5. Different Packages Associated with Collection Sets
+Use msdb
+select name, collection_package_path,collection_package_name, upload_package_path,upload_package_name from msdb.dbo.syscollector_collector_types
+
+
+
+Listing 17-6. Data Collection Set for Snapshot Replication Using SQL Trace
+USE msdb
+GO
+
+BEGIN TRANSACTION
+BEGIN TRY
+
+-- Define collection set
+
+DECLARE @collection_set_id int;
+EXEC [dbo].[sp_syscollector_create_collection_set]
+    @name = N'Snapshot_Replication',
+    @schedule_name = N'CollectorSchedule_Every_5min',
+    @collection_mode = 0, -- cached mode needed for Trace collections
+    @logging_level = 0, -- minimum logging
+    @days_until_expiration = 5,
+    @description = N'Collection set for snapshot replication',
+    @collection_set_id = @collection_set_id output;
+SELECT @collection_set_id;
+
+-- Define input and output varaibles for the collection item
+DECLARE @trace_definition xml;
+DECLARE @collection_item_id int;
+
+-- Define the trace parameters as an XML variable
+SELECT @trace_definition = convert(xml, 
+N'<ns:SqlTraceCollector xmlns:ns="DataCollectorType" use_default="0">
+<Events>
+  <EventType name="Database">
+    <Event id="92" name="Data File Auto Grow" columnslist="15,12,9,13,10,14,11" />
+    <Event id="93" name="Log File Auto Grow" columnslist="15,12,9,13,10,14,11" />
+  </EventType>
+   <EventType name="Locks">
+    <Event id="148" name="Deadlock graph" columnslist="11,12,14,1" />
+    <Event id="25" name="Lock:Deadlock" columnslist="15,1,9,2,10,11,35,12,13,6,14" />
+    <Event id="27" name="Lock:Timeout" columnslist="15,1,9,2,6,10,14,11,35,12,13" />
+  </EventType>
+  <EventType name="Performance">
+    <Event id="122" name="Showplan XML" columnslist="7,8,64,1,9,25,41,49,2,10,14,22,26,34,50,3,11,35,51,4,12,28,60,5,29" />
+  </EventType>
+  <EventType name="Sessions">
+    <Event id="17" name="ExistingConnection" columnslist="12,1,9,6,10,14,11,35" />
+  </EventType>
+  <EventType name="Stored Procedures">
+    <Event id="10" name="RPC:Completed" columnslist="15,16,1,9,17,2,10,18,34,11,35,12,13,6,14" />
+    <Event id="43" name="SP:Completed" columnslist="15,1,9,10,34,11,35,12,28,13,6,14" />
+    <Event id="37" name="SP:Recompile" columnslist="1,9,6,10,14,34,11,35,12" />
+    <Event id="42" name="SP:Starting" columnslist="1,9,6,10,14,34,11,35,12,28" />
+    <Event id="45" name="SP:StmtCompleted" columnslist="16,1,9,17,25,10,18,34,11,35,12,28,13,6,14,15" />
+  </EventType>
+  <EventType name="TSQL">
+    <Event id="12" name="SQL:BatchCompleted" columnslist="15,16,1,9,17,6,10,14,18,11,35,12,13" />
+    <Event id="13" name="SQL:BatchStarting" columnslist="12,1,9,6,10,14,11,35" />
+    <Event id="41" name="SQL:StmtCompleted" columnslist="15,16,1,9,17,25,10,18,11,35,12,13,6,14" />
+  </EventType>
+</Events>
+<Filters>
+  <Filter columnid="10" columnname="ApplicationName" logical_operator="AND" comparison_operator="NOTLIKE" value="SQLProfiler" />
+  <Filter columnid="10" columnname="ApplicationName" logical_operator="AND" comparison_operator="NE" value="NULL" />
+  <Filter columnid="10" columnname="ApplicationName" logical_operator="AND" comparison_operator="NOTLIKE" value="SQL Server Profiler - fd32b895-ea12-4512-a947-5be833999240" />
+</Filters>
+</ns:SqlTraceCollector>
+');
+
+-- Retrieve the collector type GUID for the trace collector type
+DECLARE @collector_type_GUID uniqueidentifier;
+SELECT @collector_type_GUID = collector_type_uid FROM [dbo].[syscollector_collector_types] WHERE name = N'Generic SQL Trace Collector Type';
+
+-- Create the trace collection item
+EXEC [dbo].[sp_syscollector_create_collection_item]
+   @collection_set_id = @collection_set_id,
+   @collector_type_uid = @collector_type_GUID,
+   @name = N'Snapshot_Replication',
+   @frequency = 900, -- specified the frequency for checking to see if trace is still running
+   @parameters = @trace_definition,
+   @collection_item_id = @collection_item_id output;
+SELECT @collection_item_id;
+
+COMMIT TRANSACTION;
+END TRY
+
+BEGIN CATCH
+ROLLBACK TRANSACTION;
+DECLARE @ErrorMessage nvarchar(4000);
+DECLARE @ErrorSeverity int;
+DECLARE @ErrorState int;
+DECLARE @ErrorNumber int;
+DECLARE @ErrorLine int;
+DECLARE @ErrorProcedure nvarchar(200);
+SELECT @ErrorLine = ERROR_LINE(),
+       @ErrorSeverity = ERROR_SEVERITY(),
+       @ErrorState = ERROR_STATE(),
+       @ErrorNumber = ERROR_NUMBER(),
+       @ErrorMessage = ERROR_MESSAGE(),
+       @ErrorProcedure = ISNULL(ERROR_PROCEDURE(), '-');
+RAISERROR (14684, @ErrorSeverity, 1 , @ErrorNumber, @ErrorSeverity, @ErrorState, @ErrorProcedure, @ErrorLine, @ErrorMessage);
+END CATCH;
+GO
+
+
+
